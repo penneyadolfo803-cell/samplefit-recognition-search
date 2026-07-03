@@ -55,6 +55,7 @@ import {
   inferDemoFields,
   searchDemoSamples
 } from "./lib/demo";
+import { businessTeams } from "./lib/bulk-fixtures";
 import { fileToOptimizedDataUrl, formatTags } from "./lib/image";
 import type {
   BomItem,
@@ -66,7 +67,7 @@ import type {
   SimilarResult
 } from "./lib/types";
 
-type TabId = "library" | "entry" | "borrow" | "ai";
+type TabId = "library" | "entry" | "bulk" | "borrow" | "ai";
 type PortalMode = "admin" | "front";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
@@ -110,6 +111,8 @@ const emptyDraft: SampleDraft = {
   craft: "",
   styleTags: [],
   sampleKind: "physical",
+  source: "design",
+  ownerTeam: "设计部",
   location: "",
   rack: "",
   supplier: "",
@@ -131,6 +134,7 @@ const emptyDraft: SampleDraft = {
 const tabs = [
   { id: "library" as const, label: "样衣库", icon: Database },
   { id: "entry" as const, label: "录入", icon: PackagePlus },
+  { id: "bulk" as const, label: "大货", icon: Boxes },
   { id: "borrow" as const, label: "借还", icon: ClipboardList },
   { id: "ai" as const, label: "识别检索", icon: Camera }
 ];
@@ -165,7 +169,17 @@ function App() {
   const [tab, setTab] = useState<TabId>("library");
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<SampleDraft>(emptyDraft);
+  const [bulkDraft, setBulkDraft] = useState<SampleDraft>({
+    ...emptyDraft,
+    source: "bulk",
+    ownerTeam: businessTeams[0],
+    location: `${businessTeams[0]}大货样衣区`,
+    visibilityScope: `${businessTeams[0]},设计中心,样衣管理员`,
+    notes: "业务组大货样品"
+  });
   const [query, setQuery] = useState("");
+  const [bulkQuery, setBulkQuery] = useState("");
+  const [bulkTeamFilter, setBulkTeamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [kindFilter, setKindFilter] = useState("all");
   const [notice, setNotice] = useState("");
@@ -204,6 +218,8 @@ function App() {
 
   const selected = samples.find((sample) => sample.id === selectedId) || samples[0];
   const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
+  const designSamples = useMemo(() => samples.filter((sample) => sample.source !== "bulk"), [samples]);
+  const bulkSamples = useMemo(() => samples.filter((sample) => sample.source === "bulk"), [samples]);
   const frontSelectedSamples = useMemo(
     () => samples.filter((sample) => frontSelectedIds.includes(sample.id)),
     [samples, frontSelectedIds]
@@ -211,7 +227,7 @@ function App() {
 
   const filteredSamples = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return samples.filter((sample) => {
+    return designSamples.filter((sample) => {
       const matchesStatus = statusFilter === "all" || sample.status === statusFilter;
       const matchesKind = kindFilter === "all" || sample.sampleKind === kindFilter;
       const haystack = [
@@ -230,11 +246,32 @@ function App() {
         .toLowerCase();
       return matchesStatus && matchesKind && (!term || haystack.includes(term));
     });
-  }, [samples, query, statusFilter, kindFilter]);
+  }, [designSamples, query, statusFilter, kindFilter]);
+
+  const filteredBulkSamples = useMemo(() => {
+    const term = bulkQuery.trim().toLowerCase();
+    return bulkSamples.filter((sample) => {
+      const matchesTeam = bulkTeamFilter === "all" || sample.ownerTeam === bulkTeamFilter;
+      const haystack = [
+        sample.sku,
+        sample.styleNo,
+        sample.name,
+        sample.category,
+        sample.color,
+        sample.fabric,
+        sample.ownerTeam,
+        sample.location,
+        sample.styleTags.join(" ")
+      ]
+        .join(" ")
+        .toLowerCase();
+      return matchesTeam && (!term || haystack.includes(term));
+    });
+  }, [bulkSamples, bulkQuery, bulkTeamFilter]);
 
   const frontSamples = useMemo(() => {
     const term = frontQuery.trim().toLowerCase();
-    return samples.filter((sample) => {
+    return designSamples.filter((sample) => {
       const haystack = [
         sample.sku,
         sample.styleNo,
@@ -249,17 +286,18 @@ function App() {
         .toLowerCase();
       return !term || haystack.includes(term);
     });
-  }, [samples, frontQuery]);
+  }, [designSamples, frontQuery]);
 
   const metrics = useMemo(() => {
     return {
-      total: samples.length,
-      inStock: samples.filter((sample) => sample.status === "in_stock").length,
-      borrowed: samples.filter((sample) => sample.status === "borrowed").length,
-      selected: samples.filter((sample) => sample.selected).length,
+      total: designSamples.length,
+      bulk: bulkSamples.length,
+      inStock: designSamples.filter((sample) => sample.status === "in_stock").length,
+      borrowed: designSamples.filter((sample) => sample.status === "borrowed").length,
+      selected: designSamples.filter((sample) => sample.selected).length,
       requests: borrowRequests.filter((request) => request.status === "pending").length
     };
-  }, [samples, borrowRequests]);
+  }, [designSamples, bulkSamples, borrowRequests]);
 
   useEffect(() => {
     void reload();
@@ -462,6 +500,18 @@ function App() {
     setTab("entry");
   }
 
+  function startBulkCreate(team = businessTeams[0]) {
+    setBulkDraft({
+      ...emptyDraft,
+      source: "bulk",
+      ownerTeam: team,
+      location: `${team}大货样衣区`,
+      visibilityScope: `${team},设计中心,样衣管理员`,
+      notes: "业务组大货样品"
+    });
+    setTab("bulk");
+  }
+
   function editSample(sample: Sample) {
     const { embedding, borrowHistory, createdAt, updatedAt, ...editable } = sample;
     void embedding;
@@ -470,6 +520,16 @@ function App() {
     void updatedAt;
     setDraft({ ...editable, id: sample.id });
     setTab("entry");
+  }
+
+  function editBulkSample(sample: Sample) {
+    const { embedding, borrowHistory, createdAt, updatedAt, ...editable } = sample;
+    void embedding;
+    void borrowHistory;
+    void createdAt;
+    void updatedAt;
+    setBulkDraft({ ...editable, source: "bulk" });
+    setTab("bulk");
   }
 
   async function saveDraft() {
@@ -493,6 +553,39 @@ function App() {
       setDraft({ ...emptyDraft });
       setTab("library");
       setNotice("样衣档案已保存");
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveBulkDraft() {
+    setBusy("bulk-save");
+    setNotice("");
+    const payload: SampleDraft = {
+      ...bulkDraft,
+      source: "bulk",
+      ownerTeam: bulkDraft.ownerTeam || businessTeams[0],
+      location: bulkDraft.location || `${bulkDraft.ownerTeam || businessTeams[0]}大货样衣区`,
+      visibilityScope: bulkDraft.visibilityScope || `${bulkDraft.ownerTeam || businessTeams[0]},设计中心,样衣管理员`
+    };
+    try {
+      if (demoMode) {
+        const saved = draftToDemoSample(payload);
+        setSamples((current) =>
+          payload.id ? current.map((sample) => (sample.id === payload.id ? saved : sample)) : [saved, ...current]
+        );
+        setSelectedId(saved.id);
+        startBulkCreate(payload.ownerTeam);
+        setNotice("演示模式已保存大货样品");
+        return;
+      }
+      const saved = payload.id ? await updateSample(payload.id, payload) : await createSample(payload);
+      await reload();
+      setSelectedId(saved.id);
+      startBulkCreate(payload.ownerTeam);
+      setNotice("大货样品已保存");
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -685,6 +778,30 @@ function App() {
     setDraft((current) => ({ ...current, imageUrl }));
   }
 
+  async function uploadBulkFrontImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const imageUrl = await fileToOptimizedDataUrl(file);
+    setBulkDraft((current) => ({ ...current, imageUrl, enhancedImageUrl: imageUrl }));
+  }
+
+  async function uploadBulkBackImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const imageUrl = await fileToOptimizedDataUrl(file);
+    setBulkDraft((current) => ({
+      ...current,
+      designFiles: [
+        ...current.designFiles.filter((fileItem) => fileItem.name !== "大货背面白底模特图"),
+        { id: uid(), name: "大货背面白底模特图", type: "PNG", url: imageUrl }
+      ]
+    }));
+  }
+
   async function uploadSearchImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) {
@@ -787,6 +904,12 @@ function App() {
                 新增样衣
               </button>
             )}
+            {portalMode === "admin" && (
+              <button className="ghost" onClick={() => startBulkCreate()} type="button">
+                <Boxes size={16} />
+                大货录入
+              </button>
+            )}
           </div>
         </header>
 
@@ -795,6 +918,7 @@ function App() {
         {portalMode === "admin" && (
           <section className="metrics">
             <Metric icon={Boxes} label="在线样衣" value={metrics.total} />
+            <Metric icon={Database} label="大货样品" value={metrics.bulk} />
             <Metric icon={BadgeCheck} label="可借在库" value={metrics.inStock} />
             <Metric icon={Archive} label="当前借出" value={metrics.borrowed} />
             <Metric icon={ClipboardList} label="待处理申请" value={metrics.requests} />
@@ -857,6 +981,25 @@ function App() {
                 saveDraft={saveDraft}
                 setDraft={setDraft}
                 uploadDraftImage={uploadDraftImage}
+              />
+            )}
+
+            {tab === "bulk" && (
+              <BulkGoodsView
+                bulkDraft={bulkDraft}
+                busy={busy}
+                filteredBulkSamples={filteredBulkSamples}
+                selected={selected?.source === "bulk" ? selected : undefined}
+                bulkQuery={bulkQuery}
+                bulkTeamFilter={bulkTeamFilter}
+                setBulkDraft={setBulkDraft}
+                setBulkQuery={setBulkQuery}
+                setBulkTeamFilter={setBulkTeamFilter}
+                editBulkSample={editBulkSample}
+                saveBulkDraft={saveBulkDraft}
+                startBulkCreate={startBulkCreate}
+                uploadBulkBackImage={uploadBulkBackImage}
+                uploadBulkFrontImage={uploadBulkFrontImage}
               />
             )}
 
@@ -1246,6 +1389,177 @@ function EntryView(props: {
             {props.busy === "save" ? <Loader2 className="spin" size={16} /> : <Check size={16} />}
             保存档案
           </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BulkGoodsView(props: {
+  bulkDraft: SampleDraft;
+  busy: string;
+  filteredBulkSamples: Sample[];
+  selected?: Sample;
+  bulkQuery: string;
+  bulkTeamFilter: string;
+  setBulkDraft: Dispatch<SetStateAction<SampleDraft>>;
+  setBulkQuery: (value: string) => void;
+  setBulkTeamFilter: (value: string) => void;
+  editBulkSample: (sample: Sample) => void;
+  saveBulkDraft: () => Promise<void>;
+  startBulkCreate: (team?: string) => void;
+  uploadBulkBackImage: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  uploadBulkFrontImage: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+}) {
+  const setField = <K extends keyof SampleDraft>(key: K, value: SampleDraft[K]) => {
+    props.setBulkDraft((current) => ({ ...current, [key]: value }));
+  };
+  const backImage = props.bulkDraft.designFiles.find((file) => file.name.includes("背面"))?.url || "";
+
+  return (
+    <section className="bulk-layout">
+      <div className="panel browser-panel">
+        <div className="filters">
+          <label className="search-box">
+            <Search size={16} />
+            <input
+              onChange={(event) => props.setBulkQuery(event.target.value)}
+              placeholder="搜索大货款号、品类、业务组"
+              value={props.bulkQuery}
+            />
+          </label>
+          <select onChange={(event) => props.setBulkTeamFilter(event.target.value)} value={props.bulkTeamFilter}>
+            <option value="all">全部业务组</option>
+            {businessTeams.map((team) => (
+              <option key={team} value={team}>{team}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="bulk-list">
+          {props.filteredBulkSamples.map((sample) => (
+            <button
+              className={`sample-card ${props.selected?.id === sample.id ? "active" : ""}`}
+              key={sample.id}
+              onClick={() => props.editBulkSample(sample)}
+              type="button"
+            >
+              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <div className="sample-card-body">
+                <div className="card-title">
+                  <strong>{sample.name}</strong>
+                  <span className="status in_stock">{sample.ownerTeam}</span>
+                </div>
+                <small>{sample.sku} · {sample.category}</small>
+                <div className="tag-row">
+                  {formatTags(sample.styleTags).slice(0, 4).map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel bulk-form-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>{props.bulkDraft.id ? "维护大货样品" : "大货录入"}</h2>
+            <p>业务组大货样品与设计部样品分库存放</p>
+          </div>
+          <button className="ghost" onClick={() => props.startBulkCreate(props.bulkDraft.ownerTeam)} type="button">
+            <PackagePlus size={16} />
+            新建大货
+          </button>
+        </div>
+
+        <div className="bulk-images">
+          <div className="image-preview compact">
+            {props.bulkDraft.imageUrl ? <img alt="大货正面" src={props.bulkDraft.imageUrl} /> : <span>正面图</span>}
+          </div>
+          <div className="image-preview compact">
+            {backImage ? <img alt="大货背面" src={backImage} /> : <span>背面图</span>}
+          </div>
+        </div>
+        <div className="button-row">
+          <label className="file-button">
+            <Upload size={16} />
+            上传正面
+            <input accept="image/*" onChange={props.uploadBulkFrontImage} type="file" />
+          </label>
+          <label className="file-button">
+            <Upload size={16} />
+            上传背面
+            <input accept="image/*" onChange={props.uploadBulkBackImage} type="file" />
+          </label>
+        </div>
+
+        <div className="form-grid">
+          <label>
+            业务组
+            <select
+              onChange={(event) => {
+                const team = event.target.value;
+                props.setBulkDraft((current) => ({
+                  ...current,
+                  ownerTeam: team,
+                  location: current.location || `${team}大货样衣区`,
+                  visibilityScope: `${team},设计中心,样衣管理员`
+                }));
+              }}
+              value={props.bulkDraft.ownerTeam}
+            >
+              {businessTeams.map((team) => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </label>
+          <Field label="大货款号" value={props.bulkDraft.sku} onChange={(value) => setField("sku", value)} />
+          <Field label="款式编号" value={props.bulkDraft.styleNo} onChange={(value) => setField("styleNo", value)} />
+          <Field label="中文名称" value={props.bulkDraft.name} onChange={(value) => setField("name", value)} />
+          <Field label="英文名称" value={props.bulkDraft.englishName} onChange={(value) => setField("englishName", value)} />
+          <Field label="品类" value={props.bulkDraft.category} onChange={(value) => setField("category", value)} />
+          <Field label="季节" value={props.bulkDraft.season} onChange={(value) => setField("season", value)} />
+          <Field label="颜色" value={props.bulkDraft.color} onChange={(value) => setField("color", value)} />
+          <Field label="尺码" value={props.bulkDraft.size} onChange={(value) => setField("size", value)} />
+          <Field label="面料" value={props.bulkDraft.fabric} onChange={(value) => setField("fabric", value)} />
+          <Field label="成分" value={props.bulkDraft.composition} onChange={(value) => setField("composition", value)} />
+          <Field label="供应商" value={props.bulkDraft.supplier} onChange={(value) => setField("supplier", value)} />
+          <Field label="大货价" value={props.bulkDraft.retailPrice} onChange={(value) => setField("retailPrice", value)} />
+          <Field label="库位" value={props.bulkDraft.location} onChange={(value) => setField("location", value)} />
+        </div>
+
+        <label>
+          标签
+          <input
+            onChange={(event) => setField("styleTags", parseList(event.target.value))}
+            value={props.bulkDraft.styleTags.join("，")}
+          />
+        </label>
+        <label>
+          工艺/大货说明
+          <textarea onChange={(event) => setField("craft", event.target.value)} value={props.bulkDraft.craft} />
+        </label>
+        <label>
+          面料 BOM
+          <textarea
+            onChange={(event) => setField("bomItems", parseBom(event.target.value))}
+            value={formatBom(props.bulkDraft.bomItems)}
+          />
+        </label>
+
+        <div className="button-row">
+          <button disabled={props.busy === "bulk-save"} onClick={props.saveBulkDraft} type="button">
+            {props.busy === "bulk-save" ? <Loader2 className="spin" size={16} /> : <Check size={16} />}
+            保存大货样品
+          </button>
+          {props.selected && (
+            <button className="ghost" onClick={() => props.editBulkSample(props.selected as Sample)} type="button">
+              <FileText size={16} />
+              编辑当前
+            </button>
+          )}
         </div>
       </div>
     </section>
@@ -1829,6 +2143,7 @@ function titleFor(tab: TabId) {
   return {
     library: "在线样衣资料库",
     entry: "样衣录入与维护",
+    bulk: "业务组大货录入",
     borrow: "样衣借还",
     ai: "识别检索与自动报价"
   }[tab];

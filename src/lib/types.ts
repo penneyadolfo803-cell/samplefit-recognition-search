@@ -1,5 +1,6 @@
 export type SampleStatus = "in_stock" | "borrowed" | "maintenance";
 export type SampleKind = "physical" | "digital3d";
+export type SampleSource = "design" | "bulk";
 
 export interface BomItem {
   id: string;
@@ -60,6 +61,8 @@ export interface Sample {
   craft: string;
   styleTags: string[];
   sampleKind: SampleKind;
+  source: SampleSource;
+  ownerTeam: string;
   status: SampleStatus;
   location: string;
   rack: string;

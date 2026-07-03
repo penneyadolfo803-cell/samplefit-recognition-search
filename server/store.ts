@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createBulkTestSamples } from "../src/lib/bulk-fixtures";
 import type { BorrowRecord, BorrowRequest, Sample, SampleDraft } from "../src/lib/types";
 
 export interface Database {
@@ -16,7 +17,7 @@ export async function readDb(): Promise<Database> {
     const content = await readFile(dbPath, "utf8");
     const db = JSON.parse(content) as Partial<Database>;
     return {
-      samples: Array.isArray(db.samples) ? db.samples : seedSamples(),
+      samples: Array.isArray(db.samples) ? normalizeSamples(db.samples) : seedSamples(),
       borrowRequests: Array.isArray(db.borrowRequests) ? db.borrowRequests : []
     };
   } catch {
@@ -29,6 +30,35 @@ export async function readDb(): Promise<Database> {
 export async function writeDb(db: Database) {
   await mkdir(path.dirname(dbPath), { recursive: true });
   await writeFile(dbPath, JSON.stringify(db, null, 2), "utf8");
+}
+
+function normalizeSamples(samples: Sample[]) {
+  const now = new Date().toISOString();
+  const bulkFixtures = createBulkTestSamples(now);
+  const bulkFixtureById = new Map(bulkFixtures.map((sample) => [sample.id, sample]));
+  const existing = samples.map((sample) => {
+    const normalized = {
+      ...sample,
+      source: sample.source || "design",
+      ownerTeam: sample.ownerTeam || "设计部"
+    };
+    const latestBulkFixture = bulkFixtureById.get(normalized.id);
+    if (!latestBulkFixture) {
+      return normalized;
+    }
+    return {
+      ...latestBulkFixture,
+      favorite: Boolean(normalized.favorite),
+      selected: Boolean(normalized.selected),
+      status: normalized.status || latestBulkFixture.status,
+      borrowHistory: Array.isArray(normalized.borrowHistory) ? normalized.borrowHistory : [],
+      createdAt: normalized.createdAt || latestBulkFixture.createdAt,
+      updatedAt: now
+    };
+  });
+  const existingIds = new Set(existing.map((sample) => sample.id));
+  const missingBulk = bulkFixtures.filter((sample) => !existingIds.has(sample.id));
+  return [...existing, ...missingBulk];
 }
 
 export function toSample(draft: SampleDraft): Sample {
@@ -49,6 +79,8 @@ export function toSample(draft: SampleDraft): Sample {
     craft: draft.craft || "",
     styleTags: normalizeTags(draft.styleTags),
     sampleKind: draft.sampleKind || "physical",
+    source: draft.source || "design",
+    ownerTeam: draft.ownerTeam || "设计部",
     status: draft.status || "in_stock",
     location: draft.location || "",
     rack: draft.rack || "",
@@ -135,6 +167,8 @@ export function searchableText(sample: Sample) {
     sample.composition,
     sample.craft,
     sample.supplier,
+    sample.source,
+    sample.ownerTeam,
     sample.location,
     sample.rack,
     sample.notes,
@@ -231,6 +265,8 @@ function seedSamples(): Sample[] {
       craft: "灯芯绒拼领, 暗门襟, 前中纽扣, 贴袋, 绗线袋面, 袖口翻边",
       styleTags: ["衬衫夹克", "灯芯绒拼接", "贴袋", "宽松", "户外休闲", "2024AW"],
       sampleKind: "physical",
+      source: "design",
+      ownerTeam: "设计部",
       status: "borrowed",
       location: "汉商巴恩风样衣间",
       rack: "HS-09-AW",
@@ -319,6 +355,8 @@ function seedSamples(): Sample[] {
       craft: "压明线, 金属拉链",
       styleTags: ["短款", "廓形", "通勤", "轻户外"],
       sampleKind: "physical",
+      source: "design",
+      ownerTeam: "设计部",
       status: "in_stock",
       location: "上海样衣间",
       rack: "A-03",
@@ -379,6 +417,8 @@ function seedSamples(): Sample[] {
       craft: "定型压褶, 隐形侧拉链",
       styleTags: ["中长款", "压褶", "学院", "通勤"],
       sampleKind: "physical",
+      source: "design",
+      ownerTeam: "设计部",
       status: "borrowed",
       location: "上海样衣间",
       rack: "B-11",
@@ -441,6 +481,8 @@ function seedSamples(): Sample[] {
       craft: "粗针肌理, 贝壳扣",
       styleTags: ["开衫", "肌理", "度假", "轻薄"],
       sampleKind: "digital3d",
+      source: "design",
+      ownerTeam: "设计部",
       status: "maintenance",
       location: "杭州版房",
       rack: "K-02",
@@ -477,6 +519,7 @@ function seedSamples(): Sample[] {
       borrowHistory: [],
       createdAt: now,
       updatedAt: now
-    }
+    },
+    ...createBulkTestSamples(now)
   ];
 }

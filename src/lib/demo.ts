@@ -1,4 +1,5 @@
 import type { FieldCompletionResult, QuoteResult, Sample, SampleDraft, SimilarResult } from "./types";
+import { createBulkTestSamples } from "./bulk-fixtures";
 
 const now = new Date().toISOString();
 
@@ -19,6 +20,8 @@ export const demoSamples: Sample[] = [
     craft: "灯芯绒拼领, 暗门襟, 前中纽扣, 贴袋, 绗线袋面, 袖口翻边",
     styleTags: ["衬衫夹克", "灯芯绒拼接", "贴袋", "宽松", "户外休闲", "2024AW"],
     sampleKind: "physical",
+    source: "design",
+    ownerTeam: "设计部",
     status: "borrowed",
     location: "汉商巴恩风样衣间",
     rack: "HS-09-AW",
@@ -74,6 +77,8 @@ export const demoSamples: Sample[] = [
     craft: "压明线, 金属拉链",
     styleTags: ["短款", "廓形", "通勤", "轻户外"],
     sampleKind: "physical",
+    source: "design",
+    ownerTeam: "设计部",
     status: "in_stock",
     location: "上海样衣间",
     rack: "A-03",
@@ -111,6 +116,8 @@ export const demoSamples: Sample[] = [
     craft: "定型压褶, 隐形侧拉链",
     styleTags: ["中长款", "压褶", "学院", "通勤"],
     sampleKind: "physical",
+    source: "design",
+    ownerTeam: "设计部",
     status: "borrowed",
     location: "上海样衣间",
     rack: "B-11",
@@ -148,6 +155,8 @@ export const demoSamples: Sample[] = [
     craft: "粗针肌理, 贝壳扣",
     styleTags: ["开衫", "肌理", "度假", "轻薄"],
     sampleKind: "digital3d",
+    source: "design",
+    ownerTeam: "设计部",
     status: "maintenance",
     location: "杭州版房",
     rack: "K-02",
@@ -168,7 +177,8 @@ export const demoSamples: Sample[] = [
     borrowHistory: [],
     createdAt: now,
     updatedAt: now
-  }
+  },
+  ...createBulkTestSamples(now)
 ];
 
 export function draftToDemoSample(draft: SampleDraft): Sample {
@@ -180,6 +190,8 @@ export function draftToDemoSample(draft: SampleDraft): Sample {
     sku: draft.sku || `SY-${Date.now().toString().slice(-6)}`,
     name: draft.name || "未命名样衣",
     status: draft.status || "in_stock",
+    source: draft.source || "design",
+    ownerTeam: draft.ownerTeam || "设计部",
     styleTags: normalizeList(draft.styleTags),
     linkedStyles: normalizeList(draft.linkedStyles),
     linkedFabrics: normalizeList(draft.linkedFabrics),

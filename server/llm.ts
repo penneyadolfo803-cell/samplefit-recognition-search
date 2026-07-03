@@ -36,7 +36,7 @@ export async function completeSampleFields(input: {
       text: [
         "请补全服装样衣档案。只返回 JSON, 不要 Markdown。",
         "JSON 格式: {\"fields\":{...},\"confidence\":0.82,\"notes\":[\"...\"]}",
-        "fields 可包含 sku,styleNo,name,englishName,category,season,gender,color,size,fabric,composition,craft,styleTags,sampleKind,supplier,retailPrice,location,rack,threeDUrl,linkedStyles,linkedFabrics,linkedPatterns,visibilityScope,notes。",
+        "fields 可包含 sku,styleNo,name,englishName,category,season,gender,color,size,fabric,composition,craft,styleTags,sampleKind,source,ownerTeam,supplier,retailPrice,location,rack,threeDUrl,linkedStyles,linkedFabrics,linkedPatterns,visibilityScope,notes。",
         "已知字段必须保留，不要用空字符串覆盖已提供的有效信息。",
         "字段值不确定时留空或写在 notes 中，不要编造品牌授权信息。",
         `当前已知字段: ${JSON.stringify(input.partial)}`
@@ -234,6 +234,8 @@ function sanitizeFields(fields: Record<string, unknown>) {
     "location",
     "rack",
     "sampleKind",
+    "source",
+    "ownerTeam",
     "threeDUrl",
     "linkedStyles",
     "linkedFabrics",
