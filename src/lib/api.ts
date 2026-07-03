@@ -10,8 +10,10 @@ import type {
   SimilarResult
 } from "./types";
 
+const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+  const response = await fetch(`${apiBaseUrl}${url}`, {
     headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
     ...options
   });

@@ -70,7 +70,7 @@ import {
   getSampleSourceLabel,
   type FrontCatalogSource
 } from "./lib/front-catalog";
-import { fileToOptimizedDataUrl, formatTags } from "./lib/image";
+import { createDemoWhiteBackgroundPreview, fileToOptimizedDataUrl, formatTags } from "./lib/image";
 import type {
   BomItem,
   BorrowRequest,
@@ -171,8 +171,9 @@ const kindText = {
   digital3d: "3D 样衣"
 };
 
+const hasConfiguredApiBase = Boolean(import.meta.env.VITE_API_BASE_URL);
 const isStaticDemoHost =
-  typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+  typeof window !== "undefined" && window.location.hostname.endsWith("github.io") && !hasConfiguredApiBase;
 
 function App() {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -370,7 +371,7 @@ function App() {
     setSamples(demoSamples);
     setBorrowRequests([]);
     setSelectedId((current) => current || demoSamples[0]?.id || "");
-    setNotice("当前为网页演示模式，真实 AI 能力需部署后端服务");
+    setNotice("当前为客户演示版，已启用本地样衣数据和演示 AI 流程");
   }
 
   async function ensureLiveAiBackend() {
@@ -460,7 +461,7 @@ function App() {
           createdAt: new Date().toISOString()
         }));
         setBorrowRequests((current) => [...requests, ...current]);
-        setNotice(`演示模式已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
+        setNotice(`客户演示版已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
         return;
       }
 
@@ -575,7 +576,7 @@ function App() {
         setSelectedId(saved.id);
         setDraft({ ...emptyDraft });
         setTab("library");
-        setNotice("演示模式已保存到当前浏览器会话");
+        setNotice("客户演示版已保存到当前浏览器会话");
         return;
       }
       const saved = draft.id ? await updateSample(draft.id, draft) : await createSample(draft);
@@ -609,7 +610,7 @@ function App() {
         );
         setSelectedId(saved.id);
         startBulkCreate(payload.ownerTeam);
-        setNotice("演示模式已保存大货样品");
+        setNotice("客户演示版已保存大货样品");
         return;
       }
       const saved = payload.id ? await updateSample(payload.id, payload) : await createSample(payload);
@@ -636,7 +637,7 @@ function App() {
           ...result.fields,
           styleTags: normalizeArray(result.fields.styleTags ?? current.styleTags)
         }));
-        setNotice("演示模式已按本地规则补全字段");
+        setNotice("客户演示版已补全字段");
         return;
       }
       const result = await completeFields(draft, draft.imageUrl);
@@ -666,8 +667,14 @@ function App() {
     try {
       const useLiveAi = await ensureLiveAiBackend();
       if (!useLiveAi) {
-        setDraft((current) => ({ ...current, enhancedImageUrl: current.imageUrl }));
-        setNotice("演示模式保留原图，白底模特图需后端真实 AI 服务");
+        let previewUrl = draft.imageUrl;
+        try {
+          previewUrl = await createDemoWhiteBackgroundPreview(draft.imageUrl);
+        } catch {
+          previewUrl = draft.imageUrl;
+        }
+        setDraft((current) => ({ ...current, enhancedImageUrl: previewUrl }));
+        setNotice("客户演示版已生成白底图预览");
         return;
       }
       const result = await enhanceImage(draft.imageUrl);
@@ -700,7 +707,7 @@ function App() {
           materialUnitCost: materialUnitCost ? Number(materialUnitCost) : undefined
         });
         setSimilarResults(results);
-        setNotice(`演示模式找到 ${results.length} 个候选样衣并生成报价`);
+        setNotice(`客户演示版找到 ${results.length} 个候选样衣并生成报价`);
         return;
       }
       const results = await searchSimilar({
@@ -744,7 +751,7 @@ function App() {
           ]
         };
         setSamples((current) => current.map((sample) => (sample.id === selected.id ? updated : sample)));
-        setNotice("演示模式已登记借出");
+        setNotice("客户演示版已登记借出");
         return;
       }
       const dueAt = borrowForm.dueAt || new Date(Date.now() + 86400000 * 3).toISOString();
@@ -779,7 +786,7 @@ function App() {
           )
         };
         setSamples((current) => current.map((sample) => (sample.id === selected.id ? updated : sample)));
-        setNotice("演示模式已归还入库");
+        setNotice("客户演示版已归还入库");
         return;
       }
       const updated = await returnSample(selected.id);
@@ -896,7 +903,7 @@ function App() {
         <div className="model-card">
           <span className={health?.aiConfigured ? "dot ok" : "dot"} />
           <div>
-            <strong>{demoMode ? "网页演示" : health?.aiConfigured ? "真实 AI 已接入" : "AI 未配置"}</strong>
+            <strong>{demoMode ? "客户演示版" : health?.aiConfigured ? "真实 AI 已接入" : "AI 未配置"}</strong>
             <small>{health?.models.embedding || "等待服务启动"}</small>
           </div>
         </div>
