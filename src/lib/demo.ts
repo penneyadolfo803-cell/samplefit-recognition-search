@@ -3,8 +3,9 @@ import { createBulkTestSamples } from "./bulk-fixtures";
 import { createDesignTestSamples } from "./design-fixtures";
 
 const now = new Date().toISOString();
+const removedLegacySkus = new Set(["ceshi001", "SY-2607-018", "SY-2607-026", "SY-2607-041"]);
 
-export const demoSamples: Sample[] = [
+const allDemoSamples: Sample[] = [
   {
     id: "demo-ceshi001",
     sku: "ceshi001",
@@ -182,6 +183,8 @@ export const demoSamples: Sample[] = [
   ...createDesignTestSamples(now),
   ...createBulkTestSamples(now)
 ];
+
+export const demoSamples: Sample[] = allDemoSamples.filter((sample) => !removedLegacySkus.has(sample.sku));
 
 export function draftToDemoSample(draft: SampleDraft): Sample {
   const date = new Date().toISOString();
