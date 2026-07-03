@@ -107,6 +107,9 @@ const kindText = {
   digital3d: "3D 样衣"
 };
 
+const isStaticDemoHost =
+  typeof window !== "undefined" && window.location.hostname.endsWith("github.io");
+
 function App() {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [health, setHealth] = useState<HealthPayload | null>(null);
@@ -173,6 +176,11 @@ function App() {
 
   async function reload() {
     setBusy("load");
+    if (isStaticDemoHost) {
+      activateDemoMode();
+      setBusy("");
+      return;
+    }
     try {
       const [healthPayload, samplePayload] = await Promise.all([getHealth(), getSamples()]);
       setHealth(healthPayload);
@@ -181,23 +189,27 @@ function App() {
       setDemoMode(false);
     } catch (error) {
       void error;
-      setDemoMode(true);
-      setHealth({
-        ok: true,
-        aiConfigured: false,
-        models: {
-          text: "static-demo",
-          vision: "static-demo",
-          embedding: "static-demo",
-          image: "static-demo"
-        }
-      });
-      setSamples(demoSamples);
-      setSelectedId((current) => current || demoSamples[0]?.id || "");
-      setNotice("当前为网页演示模式，真实 AI 能力需部署后端服务");
+      activateDemoMode();
     } finally {
       setBusy("");
     }
+  }
+
+  function activateDemoMode() {
+    setDemoMode(true);
+    setHealth({
+      ok: true,
+      aiConfigured: false,
+      models: {
+        text: "static-demo",
+        vision: "static-demo",
+        embedding: "static-demo",
+        image: "static-demo"
+      }
+    });
+    setSamples(demoSamples);
+    setSelectedId((current) => current || demoSamples[0]?.id || "");
+    setNotice("当前为网页演示模式，真实 AI 能力需部署后端服务");
   }
 
   function startCreate() {
