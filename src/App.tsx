@@ -21,15 +21,19 @@ import {
   Loader2,
   LogIn,
   PackagePlus,
+  Presentation,
+  ReceiptText,
   RotateCcw,
   Search,
   Send,
   Shirt,
   ShieldCheck,
   Sparkles,
+  ThumbsUp,
   Upload,
   UserRound,
   Wand2,
+  X,
   type LucideIcon
 } from "lucide-react";
 import {
@@ -64,9 +68,32 @@ import type {
 
 type TabId = "library" | "entry" | "borrow" | "ai";
 type PortalMode = "admin" | "front";
+type FrontUser = { name: string; team: string; phone: string };
+type PptRecord = {
+  id: string;
+  fileName: string;
+  sampleCount: number;
+  sampleSkus: string[];
+  createdAt: string;
+};
+type FeeBill = {
+  id: string;
+  title: string;
+  amount: number;
+  points: number;
+  createdAt: string;
+  status: string;
+};
 
 const appName = "舜天信兴样衣管理系统";
 const fixedAiCreditsRemaining = 1200;
+const storageKeys = {
+  frontUser: "samplefit.front.user",
+  frontFavorites: "samplefit.front.favorites",
+  frontLikes: "samplefit.front.likes",
+  pptRecords: "samplefit.front.pptRecords",
+  feeBills: "samplefit.front.feeBills"
+};
 
 const emptyDraft: SampleDraft = {
   sku: "",
@@ -156,9 +183,19 @@ function App() {
   const [materialName, setMaterialName] = useState("");
   const [materialUnitCost, setMaterialUnitCost] = useState("");
   const [similarResults, setSimilarResults] = useState<SimilarResult[]>([]);
-  const [frontLogin, setFrontLogin] = useState({ name: "", team: "", phone: "" });
-  const [frontUser, setFrontUser] = useState<{ name: string; team: string; phone: string } | null>(null);
+  const [frontLogin, setFrontLogin] = useState<FrontUser>(() => readStoredObject<FrontUser>(storageKeys.frontUser) || {
+    name: "",
+    team: "",
+    phone: ""
+  });
+  const [frontUser, setFrontUser] = useState<FrontUser | null>(() => readStoredObject<FrontUser>(storageKeys.frontUser));
   const [frontQuery, setFrontQuery] = useState("");
+  const [frontSelectedIds, setFrontSelectedIds] = useState<string[]>([]);
+  const [frontFavoriteIds, setFrontFavoriteIds] = useState<string[]>(() => readStoredArray(storageKeys.frontFavorites));
+  const [frontLikedIds, setFrontLikedIds] = useState<string[]>(() => readStoredArray(storageKeys.frontLikes));
+  const [showProfile, setShowProfile] = useState(false);
+  const [pptRecords, setPptRecords] = useState<PptRecord[]>(() => readStoredObject<PptRecord[]>(storageKeys.pptRecords) || []);
+  const [feeBills, setFeeBills] = useState<FeeBill[]>(() => readStoredObject<FeeBill[]>(storageKeys.feeBills) || []);
   const [frontRequestForm, setFrontRequestForm] = useState({
     purpose: "客户看样",
     dueAt: "",
@@ -167,6 +204,10 @@ function App() {
 
   const selected = samples.find((sample) => sample.id === selectedId) || samples[0];
   const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
+  const frontSelectedSamples = useMemo(
+    () => samples.filter((sample) => frontSelectedIds.includes(sample.id)),
+    [samples, frontSelectedIds]
+  );
 
   const filteredSamples = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -223,6 +264,26 @@ function App() {
   useEffect(() => {
     void reload();
   }, []);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.frontUser, frontUser);
+  }, [frontUser]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.frontFavorites, frontFavoriteIds);
+  }, [frontFavoriteIds]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.frontLikes, frontLikedIds);
+  }, [frontLikedIds]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.pptRecords, pptRecords);
+  }, [pptRecords]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.feeBills, feeBills);
+  }, [feeBills]);
 
   async function reload() {
     setBusy("load");
@@ -282,47 +343,113 @@ function App() {
     setNotice("已进入业务前台，可查看设计部样衣并提交借出申请");
   }
 
-  async function submitFrontBorrowRequest(sample: Sample) {
+  function toggleFrontSelect(sample: Sample) {
+    setFrontSelectedIds((current) =>
+      current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
+    );
+    setSelectedId(sample.id);
+  }
+
+  function toggleFrontFavorite(sample: Sample) {
+    setFrontFavoriteIds((current) =>
+      current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
+    );
+  }
+
+  function toggleFrontLike(sample: Sample) {
+    setFrontLikedIds((current) =>
+      current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
+    );
+  }
+
+  async function submitFrontBorrowRequest(target: Sample | Sample[]) {
     if (!frontUser) {
       setNotice("请先通过业务前台入口登录");
+      return;
+    }
+    const targets = Array.isArray(target) ? target : [target];
+    if (!targets.length) {
+      setNotice("请先选择样衣");
       return;
     }
     setBusy("front-request");
     setNotice("");
     try {
-      const payload = {
-        sampleId: sample.id,
-        requester: frontUser.name,
-        team: frontUser.team,
-        phone: frontUser.phone,
-        purpose: frontRequestForm.purpose || "客户看样",
-        dueAt: frontRequestForm.dueAt || new Date(Date.now() + 86400000 * 3).toISOString(),
-        note: frontRequestForm.note
-      };
-
       if (demoMode) {
-        const request: BorrowRequest = {
+        const requests = targets.map((sample) => ({
           id: uid(),
           sampleId: sample.id,
           sampleSku: sample.sku,
           sampleName: sample.name,
-          requester: payload.requester,
-          team: payload.team,
-          phone: payload.phone,
-          purpose: payload.purpose,
-          dueAt: payload.dueAt,
-          status: "pending",
-          note: payload.note,
+          requester: frontUser.name,
+          team: frontUser.team,
+          phone: frontUser.phone,
+          purpose: frontRequestForm.purpose || "客户看样",
+          dueAt: frontRequestForm.dueAt || new Date(Date.now() + 86400000 * 3).toISOString(),
+          status: "pending" as const,
+          note: frontRequestForm.note,
           createdAt: new Date().toISOString()
-        };
-        setBorrowRequests((current) => [request, ...current]);
-        setNotice("演示模式已提交借出申请，等待设计部确认");
+        }));
+        setBorrowRequests((current) => [...requests, ...current]);
+        setNotice(`演示模式已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
         return;
       }
 
-      const request = await createBorrowRequest(payload);
-      setBorrowRequests((current) => [request, ...current]);
-      setNotice("借出申请已提交，等待设计部确认");
+      const requests = await Promise.all(
+        targets.map((sample) =>
+          createBorrowRequest({
+            sampleId: sample.id,
+            requester: frontUser.name,
+            team: frontUser.team,
+            phone: frontUser.phone,
+            purpose: frontRequestForm.purpose || "客户看样",
+            dueAt: frontRequestForm.dueAt || new Date(Date.now() + 86400000 * 3).toISOString(),
+            note: frontRequestForm.note
+          })
+        )
+      );
+      setBorrowRequests((current) => [...requests, ...current]);
+      setNotice(`已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function generateFrontPpt() {
+    if (!frontUser) {
+      setNotice("请先通过业务前台入口登录");
+      return;
+    }
+    if (!frontSelectedSamples.length) {
+      setNotice("请先多选样衣，再生成推款 PPT");
+      return;
+    }
+    setBusy("ppt");
+    setNotice("");
+    try {
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+      const fileName = `舜天信兴推款PPT-${frontUser.team}-${stamp}.pptx`;
+      await createRecommendationPpt(frontSelectedSamples, frontUser, fileName);
+      const pptRecord: PptRecord = {
+        id: uid(),
+        fileName,
+        sampleCount: frontSelectedSamples.length,
+        sampleSkus: frontSelectedSamples.map((sample) => sample.sku),
+        createdAt: new Date().toISOString()
+      };
+      const feeBill: FeeBill = {
+        id: uid(),
+        title: `推款 PPT 生成 · ${frontSelectedSamples.length} 件`,
+        amount: 0,
+        points: frontSelectedSamples.length * 5,
+        status: "演示计费",
+        createdAt: new Date().toISOString()
+      };
+      setPptRecords((current) => [pptRecord, ...current]);
+      setFeeBills((current) => [feeBill, ...current]);
+      setNotice(`已生成推款 PPT：${fileName}`);
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -635,6 +762,21 @@ function App() {
               <span>AI 积分剩余</span>
               <strong>{aiCreditsRemaining}</strong>
             </div>
+            {portalMode === "front" && frontUser && (
+              <button
+                disabled={!frontSelectedSamples.length || busy === "ppt"}
+                onClick={() => void generateFrontPpt()}
+                type="button"
+              >
+                {busy === "ppt" ? <Loader2 className="spin" size={16} /> : <Presentation size={16} />}
+                生成推款 PPT
+                {frontSelectedSamples.length ? <b>{frontSelectedSamples.length}</b> : null}
+              </button>
+            )}
+            <button className="ghost" onClick={() => setShowProfile(true)} type="button">
+              <UserRound size={16} />
+              我的
+            </button>
             <button className="ghost" onClick={() => void reload()} type="button">
               <RotateCcw size={16} />
               刷新
@@ -668,9 +810,13 @@ function App() {
           <FrontDeskView
             busy={busy}
             frontLogin={frontLogin}
+            frontFavoriteIds={frontFavoriteIds}
+            frontLikedIds={frontLikedIds}
             frontQuery={frontQuery}
             frontRequestForm={frontRequestForm}
             frontSamples={frontSamples}
+            frontSelectedIds={frontSelectedIds}
+            frontSelectedSamples={frontSelectedSamples}
             frontUser={frontUser}
             requests={borrowRequests}
             selected={selected}
@@ -680,6 +826,9 @@ function App() {
             setSelectedId={setSelectedId}
             loginFrontDesk={loginFrontDesk}
             submitFrontBorrowRequest={submitFrontBorrowRequest}
+            toggleFrontFavorite={toggleFrontFavorite}
+            toggleFrontLike={toggleFrontLike}
+            toggleFrontSelect={toggleFrontSelect}
           />
         ) : (
           <>
@@ -771,6 +920,16 @@ function App() {
           </button>
         ))}
       </nav>
+
+      {showProfile && (
+        <ProfileDrawer
+          bills={feeBills}
+          frontUser={frontUser}
+          onClose={() => setShowProfile(false)}
+          pptRecords={pptRecords}
+          requests={borrowRequests}
+        />
+      )}
     </div>
   );
 }
@@ -1275,9 +1434,13 @@ function AiView(props: {
 function FrontDeskView(props: {
   busy: string;
   frontLogin: { name: string; team: string; phone: string };
+  frontFavoriteIds: string[];
+  frontLikedIds: string[];
   frontQuery: string;
   frontRequestForm: { purpose: string; dueAt: string; note: string };
   frontSamples: Sample[];
+  frontSelectedIds: string[];
+  frontSelectedSamples: Sample[];
   frontUser: { name: string; team: string; phone: string } | null;
   requests: BorrowRequest[];
   selected?: Sample;
@@ -1286,7 +1449,10 @@ function FrontDeskView(props: {
   setFrontRequestForm: Dispatch<SetStateAction<{ purpose: string; dueAt: string; note: string }>>;
   setSelectedId: (value: string) => void;
   loginFrontDesk: () => void;
-  submitFrontBorrowRequest: (sample: Sample) => Promise<void>;
+  submitFrontBorrowRequest: (target: Sample | Sample[]) => Promise<void>;
+  toggleFrontFavorite: (sample: Sample) => void;
+  toggleFrontLike: (sample: Sample) => void;
+  toggleFrontSelect: (sample: Sample) => void;
 }) {
   const userRequests = props.frontUser
     ? props.requests.filter((request) => request.requester === props.frontUser?.name)
@@ -1345,7 +1511,7 @@ function FrontDeskView(props: {
             <strong>{props.frontUser.name}</strong>
             <span>{props.frontUser.team}</span>
           </div>
-          <small>前台可见设计部样衣</small>
+          <small>已选 {props.frontSelectedSamples.length} 件</small>
         </div>
         <label className="search-box">
           <Search size={16} />
@@ -1357,19 +1523,48 @@ function FrontDeskView(props: {
         </label>
         <div className="front-sample-grid">
           {props.frontSamples.map((sample) => (
-            <button
+            <article
               className={`front-sample-card ${props.selected?.id === sample.id ? "active" : ""}`}
               key={sample.id}
-              onClick={() => props.setSelectedId(sample.id)}
-              type="button"
             >
-              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
-              <div>
+              <button className="front-card-main" onClick={() => props.setSelectedId(sample.id)} type="button">
+                <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              </button>
+              <div className="front-card-body">
                 <strong>{sample.name}</strong>
                 <span>{sample.sku} · {sample.category}</span>
-                <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+                <div className="front-card-meta">
+                  <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+                  <small>{sample.color || sample.fabric}</small>
+                </div>
+                <div className="front-card-actions">
+                  <button
+                    className={props.frontSelectedIds.includes(sample.id) ? "front-action active" : "front-action"}
+                    onClick={() => props.toggleFrontSelect(sample)}
+                    type="button"
+                  >
+                    <Check size={15} />
+                    选中
+                  </button>
+                  <button
+                    className={props.frontFavoriteIds.includes(sample.id) ? "front-action active" : "front-action"}
+                    onClick={() => props.toggleFrontFavorite(sample)}
+                    type="button"
+                  >
+                    <Heart fill={props.frontFavoriteIds.includes(sample.id) ? "currentColor" : "none"} size={15} />
+                    收藏
+                  </button>
+                  <button
+                    className={props.frontLikedIds.includes(sample.id) ? "front-action active" : "front-action"}
+                    onClick={() => props.toggleFrontLike(sample)}
+                    type="button"
+                  >
+                    <ThumbsUp fill={props.frontLikedIds.includes(sample.id) ? "currentColor" : "none"} size={15} />
+                    {sampleLikeCount(sample, props.frontLikedIds)}
+                  </button>
+                </div>
               </div>
-            </button>
+            </article>
           ))}
         </div>
       </div>
@@ -1393,6 +1588,16 @@ function FrontDeskView(props: {
               <Info label="供应商" value={props.selected.supplier} />
             </div>
             <div className="front-request-form">
+              {props.frontSelectedSamples.length > 0 && (
+                <div className="selected-strip">
+                  <strong>已选推款</strong>
+                  <div>
+                    {props.frontSelectedSamples.map((sample) => (
+                      <span key={sample.id}>{sample.sku}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Field
                 label="借样用途"
                 value={props.frontRequestForm.purpose}
@@ -1417,14 +1622,25 @@ function FrontDeskView(props: {
                   value={props.frontRequestForm.note}
                 />
               </label>
-              <button
-                disabled={props.busy === "front-request"}
-                onClick={() => void props.submitFrontBorrowRequest(props.selected as Sample)}
-                type="button"
-              >
-                {props.busy === "front-request" ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
-                提交借出申请
-              </button>
+              <div className="button-row">
+                <button
+                  disabled={props.busy === "front-request"}
+                  onClick={() => void props.submitFrontBorrowRequest(props.selected as Sample)}
+                  type="button"
+                >
+                  {props.busy === "front-request" ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
+                  申请当前样衣
+                </button>
+                <button
+                  className="ghost"
+                  disabled={props.busy === "front-request" || !props.frontSelectedSamples.length}
+                  onClick={() => void props.submitFrontBorrowRequest(props.frontSelectedSamples)}
+                  type="button"
+                >
+                  <ClipboardList size={16} />
+                  申请已选
+                </button>
+              </div>
             </div>
           </>
         ) : (
@@ -1453,6 +1669,108 @@ function FrontDeskView(props: {
         </div>
       </div>
     </section>
+  );
+}
+
+function ProfileDrawer(props: {
+  bills: FeeBill[];
+  frontUser: FrontUser | null;
+  onClose: () => void;
+  pptRecords: PptRecord[];
+  requests: BorrowRequest[];
+}) {
+  const visibleRequests = props.frontUser
+    ? props.requests.filter((request) => request.requester === props.frontUser?.name)
+    : props.requests;
+
+  return (
+    <div className="profile-backdrop" role="presentation">
+      <aside className="panel profile-drawer" role="dialog" aria-label="我的">
+        <div className="profile-head">
+          <div>
+            <p className="eyebrow">我的</p>
+            <h2>{props.frontUser ? props.frontUser.name : "个人中心"}</h2>
+            <span>{props.frontUser ? props.frontUser.team : "登录业务前台后记录会归到个人名下"}</span>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button">
+            <X size={17} />
+          </button>
+        </div>
+
+        <section className="profile-section">
+          <h3>
+            <ClipboardList size={16} />
+            借样记录
+          </h3>
+          <div className="profile-list">
+            {visibleRequests.length ? (
+              visibleRequests.slice(0, 8).map((request) => (
+                <div key={request.id}>
+                  <strong>{request.sampleName}</strong>
+                  <span>{request.sampleSku} · {request.purpose}</span>
+                  <small>
+                    {formatDate(request.createdAt)} · {borrowRequestStatusText[request.status]}
+                  </small>
+                </div>
+              ))
+            ) : (
+              <div>
+                <strong>暂无借样记录</strong>
+                <span>在业务前台提交申请后会出现在这里</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="profile-section">
+          <h3>
+            <Presentation size={16} />
+            PPT 记录
+          </h3>
+          <div className="profile-list">
+            {props.pptRecords.length ? (
+              props.pptRecords.slice(0, 8).map((record) => (
+                <div key={record.id}>
+                  <strong>{record.fileName}</strong>
+                  <span>{record.sampleCount} 件 · {record.sampleSkus.join("，")}</span>
+                  <small>{formatDate(record.createdAt)} 生成</small>
+                </div>
+              ))
+            ) : (
+              <div>
+                <strong>暂无 PPT 记录</strong>
+                <span>多选样衣后点击右上角生成推款 PPT</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="profile-section">
+          <h3>
+            <ReceiptText size={16} />
+            费用账单
+          </h3>
+          <div className="profile-list">
+            {props.bills.length ? (
+              props.bills.slice(0, 8).map((bill) => (
+                <div key={bill.id}>
+                  <strong>{bill.title}</strong>
+                  <span>{bill.status} · AI 积分 {bill.points}</span>
+                  <small>
+                    {formatMoney(bill.amount)} · {formatDate(bill.createdAt)}
+                  </small>
+                </div>
+              ))
+            ) : (
+              <div>
+                <strong>暂无费用账单</strong>
+                <span>后续接充值和扣费后会显示真实费用流水</span>
+              </div>
+            )}
+          </div>
+        </section>
+      </aside>
+    </div>
   );
 }
 
@@ -1578,6 +1896,198 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("zh-CN", {
+    style: "currency",
+    currency: "CNY"
+  }).format(value);
+}
+
+function sampleLikeCount(sample: Sample, likedIds: string[]) {
+  const seed = Array.from(sample.sku || sample.id).reduce((total, char) => total + char.charCodeAt(0), 0);
+  return 18 + (seed % 42) + (likedIds.includes(sample.id) ? 1 : 0);
+}
+
+async function createRecommendationPpt(samples: Sample[], user: FrontUser, fileName: string) {
+  const { default: pptxgen } = await import("pptxgenjs");
+  const pptx = new pptxgen();
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = appName;
+  pptx.company = "舜天信兴";
+  pptx.subject = "业务前台推款方案";
+  pptx.title = fileName.replace(/\.pptx$/i, "");
+
+  const cover = pptx.addSlide();
+  cover.background = { color: "EEF6FF" };
+  cover.addText("舜天信兴推款方案", {
+    x: 0.7,
+    y: 1.0,
+    w: 8.8,
+    h: 0.7,
+    fontFace: "Microsoft YaHei",
+    fontSize: 34,
+    bold: true,
+    color: "123047"
+  });
+  cover.addText(`${user.team} · ${user.name}\n${samples.length} 件样衣 · ${new Date().toLocaleDateString("zh-CN")}`, {
+    x: 0.75,
+    y: 2.0,
+    w: 6.4,
+    h: 1.1,
+    fontFace: "Microsoft YaHei",
+    fontSize: 16,
+    color: "51616F",
+    breakLine: false
+  });
+  cover.addText(samples.map((sample, index) => `${index + 1}. ${sample.sku} ${sample.name}`).join("\n"), {
+    x: 0.8,
+    y: 3.25,
+    w: 11.2,
+    h: 2.7,
+    fontFace: "Microsoft YaHei",
+    fontSize: 13,
+    color: "243747",
+    breakLine: false,
+    fit: "shrink"
+  });
+
+  for (const [index, sample] of samples.entries()) {
+    const slide = pptx.addSlide();
+    slide.background = { color: "F7FBFF" };
+    slide.addText(`${String(index + 1).padStart(2, "0")} / ${samples.length}`, {
+      x: 0.65,
+      y: 0.38,
+      w: 1.4,
+      h: 0.25,
+      fontFace: "Microsoft YaHei",
+      fontSize: 10,
+      bold: true,
+      color: "1F74C9"
+    });
+    const imageData = await imageToDataUrl(sample.enhancedImageUrl || sample.imageUrl);
+    if (imageData) {
+      slide.addImage({ data: imageData, x: 0.7, y: 0.85, w: 4.4, h: 5.7, sizing: { type: "cover", x: 0.7, y: 0.85, w: 4.4, h: 5.7 } });
+    }
+    slide.addText(sample.name, {
+      x: 5.55,
+      y: 0.85,
+      w: 6.4,
+      h: 0.52,
+      fontFace: "Microsoft YaHei",
+      fontSize: 23,
+      bold: true,
+      color: "13222C",
+      fit: "shrink"
+    });
+    slide.addText(`${sample.sku} · ${sample.styleNo || "未维护款式编号"}`, {
+      x: 5.58,
+      y: 1.48,
+      w: 5.8,
+      h: 0.34,
+      fontFace: "Microsoft YaHei",
+      fontSize: 12,
+      bold: true,
+      color: "1F74C9"
+    });
+    const details = [
+      ["品类", sample.category],
+      ["季节", sample.season],
+      ["颜色", sample.color],
+      ["尺码", sample.size],
+      ["面料", sample.fabric],
+      ["工艺", sample.craft]
+    ]
+      .map(([label, value]) => `${label}：${value || "待维护"}`)
+      .join("\n");
+    slide.addText(details, {
+      x: 5.58,
+      y: 2.0,
+      w: 6.5,
+      h: 2.2,
+      fontFace: "Microsoft YaHei",
+      fontSize: 13,
+      color: "243747",
+      breakLine: false,
+      fit: "shrink"
+    });
+    slide.addText(`标签：${sample.styleTags.join(" / ") || "待维护"}\n建议：用于客户看样、同款拓展、面辅料替换报价。`, {
+      x: 5.58,
+      y: 4.55,
+      w: 6.4,
+      h: 1.15,
+      fontFace: "Microsoft YaHei",
+      fontSize: 12,
+      color: "51616F",
+      breakLine: false,
+      fit: "shrink"
+    });
+    slide.addText(appName, {
+      x: 5.58,
+      y: 6.42,
+      w: 3.8,
+      h: 0.25,
+      fontFace: "Microsoft YaHei",
+      fontSize: 9,
+      color: "7A8794"
+    });
+  }
+
+  await pptx.writeFile({ fileName });
+}
+
+async function imageToDataUrl(url: string) {
+  if (!url) {
+    return "";
+  }
+  if (url.startsWith("data:")) {
+    return url;
+  }
+  try {
+    const absoluteUrl = new URL(url, window.location.href).toString();
+    const response = await fetch(absoluteUrl);
+    const blob = await response.blob();
+    return await blobToDataUrl(blob);
+  } catch {
+    return "";
+  }
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function readStoredArray(key: string) {
+  return readStoredObject<string[]>(key) || [];
+}
+
+function readStoredObject<T>(key: string): T | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredObject(key: string, value: unknown) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (value === null || value === undefined) {
+    window.localStorage.removeItem(key);
+    return;
+  }
+  window.localStorage.setItem(key, JSON.stringify(value));
 }
 
 export default App;
