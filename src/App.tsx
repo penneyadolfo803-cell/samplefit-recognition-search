@@ -76,6 +76,7 @@ import type {
 
 type TabId = "library" | "entry" | "bulk" | "borrow" | "ai";
 type PortalMode = "admin" | "front";
+type FrontCatalogSource = "design" | "bulk";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
   id: string;
@@ -211,6 +212,7 @@ function App() {
   });
   const [frontUser, setFrontUser] = useState<FrontUser | null>(() => readStoredObject<FrontUser>(storageKeys.frontUser));
   const [frontQuery, setFrontQuery] = useState("");
+  const [frontCatalogSource, setFrontCatalogSource] = useState<FrontCatalogSource>("design");
   const [frontSelectedIds, setFrontSelectedIds] = useState<string[]>([]);
   const [frontFavoriteIds, setFrontFavoriteIds] = useState<string[]>(() => readStoredArray(storageKeys.frontFavorites));
   const [frontLikedIds, setFrontLikedIds] = useState<string[]>(() => readStoredArray(storageKeys.frontLikes));
@@ -227,9 +229,13 @@ function App() {
   const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
   const designSamples = useMemo(() => samples.filter((sample) => sample.source !== "bulk"), [samples]);
   const bulkSamples = useMemo(() => samples.filter((sample) => sample.source === "bulk"), [samples]);
+  const frontCatalogSamples = useMemo(
+    () => (frontCatalogSource === "bulk" ? bulkSamples : designSamples),
+    [bulkSamples, designSamples, frontCatalogSource]
+  );
   const frontSelectedSamples = useMemo(
-    () => samples.filter((sample) => frontSelectedIds.includes(sample.id)),
-    [samples, frontSelectedIds]
+    () => frontCatalogSamples.filter((sample) => frontSelectedIds.includes(sample.id)),
+    [frontCatalogSamples, frontSelectedIds]
   );
 
   const filteredSamples = useMemo(() => {
@@ -278,7 +284,7 @@ function App() {
 
   const frontSamples = useMemo(() => {
     const term = frontQuery.trim().toLowerCase();
-    return designSamples.filter((sample) => {
+    return frontCatalogSamples.filter((sample) => {
       const haystack = [
         sample.sku,
         sample.styleNo,
@@ -293,7 +299,7 @@ function App() {
         .toLowerCase();
       return !term || haystack.includes(term);
     });
-  }, [designSamples, frontQuery]);
+  }, [frontCatalogSamples, frontQuery]);
 
   const metrics = useMemo(() => {
     return {
@@ -931,6 +937,8 @@ function App() {
             frontLogin={frontLogin}
             frontFavoriteIds={frontFavoriteIds}
             frontLikedIds={frontLikedIds}
+            frontCatalogSource={frontCatalogSource}
+            frontCatalogCounts={{ design: designSamples.length, bulk: bulkSamples.length }}
             frontQuery={frontQuery}
             frontRequestForm={frontRequestForm}
             frontSamples={frontSamples}
@@ -947,6 +955,7 @@ function App() {
             reload={reload}
             runFrontVisualSearch={() => runSimilarSearch("")}
             setPortalMode={setPortalMode}
+            setFrontCatalogSource={setFrontCatalogSource}
             setFrontLogin={setFrontLogin}
             setFrontQuery={setFrontQuery}
             setFrontRequestForm={setFrontRequestForm}
@@ -1755,6 +1764,8 @@ function FrontDeskPinterestView(props: {
   frontLogin: { name: string; team: string; phone: string };
   frontFavoriteIds: string[];
   frontLikedIds: string[];
+  frontCatalogSource: FrontCatalogSource;
+  frontCatalogCounts: Record<FrontCatalogSource, number>;
   frontQuery: string;
   frontRequestForm: { purpose: string; dueAt: string; note: string };
   frontSamples: Sample[];
@@ -1770,6 +1781,7 @@ function FrontDeskPinterestView(props: {
   reload: () => Promise<void>;
   runFrontVisualSearch: () => Promise<void>;
   setPortalMode: (value: PortalMode) => void;
+  setFrontCatalogSource: (value: FrontCatalogSource) => void;
   setFrontLogin: Dispatch<SetStateAction<{ name: string; team: string; phone: string }>>;
   setFrontQuery: (value: string) => void;
   setFrontRequestForm: Dispatch<SetStateAction<{ purpose: string; dueAt: string; note: string }>>;
@@ -1786,6 +1798,10 @@ function FrontDeskPinterestView(props: {
   const [menuCollapsed, setMenuCollapsed] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
+  const catalogOptions: Array<{ id: FrontCatalogSource; label: string; icon: LucideIcon; count: number }> = [
+    { id: "design", label: "设计样衣", icon: Shirt, count: props.frontCatalogCounts.design },
+    { id: "bulk", label: "大货样品", icon: Boxes, count: props.frontCatalogCounts.bulk }
+  ];
   const visibleSamples = props.frontSamples.filter((sample) => {
     if (frontFilter === "available") {
       return sample.status === "in_stock";
@@ -1813,6 +1829,8 @@ function FrontDeskPinterestView(props: {
         .slice(0, 18)
         .map((item) => item.sample)
     : [];
+  const currentFavoriteCount = props.frontSamples.filter((sample) => props.frontFavoriteIds.includes(sample.id)).length;
+  const currentSelectedCount = props.frontSamples.filter((sample) => props.frontSelectedIds.includes(sample.id)).length;
   const menuItems = [
     { id: "all" as const, label: "全部", icon: Home, count: props.frontSamples.length },
     {
@@ -1821,10 +1839,11 @@ function FrontDeskPinterestView(props: {
       icon: BadgeCheck,
       count: props.frontSamples.filter((sample) => sample.status === "in_stock").length
     },
-    { id: "favorites" as const, label: "收藏", icon: Bookmark, count: props.frontFavoriteIds.length },
-    { id: "selected" as const, label: "已选", icon: CheckSquare, count: props.frontSelectedIds.length }
+    { id: "favorites" as const, label: "收藏", icon: Bookmark, count: currentFavoriteCount },
+    { id: "selected" as const, label: "已选", icon: CheckSquare, count: currentSelectedCount }
   ];
   const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
+  const catalogLabel = catalogOptions.find((item) => item.id === props.frontCatalogSource)?.label || "设计样衣";
   const frontSampleIds = new Set(props.frontSamples.map((sample) => sample.id));
   const frontVisualResults = visualSearchHasRun
     ? props.similarResults.filter((result) => frontSampleIds.has(result.sample.id)).slice(0, 12)
@@ -1962,6 +1981,29 @@ function FrontDeskPinterestView(props: {
           </div>
         </div>
 
+        <div className="front-catalog-switch" aria-label="前台库存类型">
+          {catalogOptions.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                className={props.frontCatalogSource === item.id ? "active" : ""}
+                key={item.id}
+                onClick={() => {
+                  props.setFrontCatalogSource(item.id);
+                  setFrontFilter("all");
+                  setFrontDetailId(null);
+                  setVisualSearchHasRun(false);
+                }}
+                type="button"
+              >
+                <Icon size={16} />
+                <span>{item.label}</span>
+                <b>{item.count}</b>
+              </button>
+            );
+          })}
+        </div>
+
         <nav className="front-menu-list">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -2036,7 +2078,7 @@ function FrontDeskPinterestView(props: {
             <div className="front-board-head">
               <div>
                 <p className="eyebrow">业务前台</p>
-                <h2>{filterLabel}样衣</h2>
+                <h2>{filterLabel}{catalogLabel}</h2>
               </div>
               <div className="front-board-stats">
                 <span>{visibleSamples.length} 件</span>

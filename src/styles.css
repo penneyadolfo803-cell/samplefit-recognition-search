@@ -1229,6 +1229,42 @@ textarea:focus {
   gap: 8px;
 }
 
+.front-catalog-switch {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.18);
+  border: 1px solid rgb(255 255 255 / 0.42);
+}
+
+.front-catalog-switch button {
+  min-height: 40px;
+  padding: 0 10px;
+  justify-content: flex-start;
+  color: #1c3142;
+  background: rgb(255 255 255 / 0.22);
+  border: 1px solid rgb(255 255 255 / 0.48);
+  box-shadow: none;
+}
+
+.front-catalog-switch button.active {
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.82), rgb(224 241 255 / 0.44));
+  border-color: rgb(31 116 201 / 0.34);
+  color: #0d4d93;
+}
+
+.front-catalog-switch b {
+  margin-left: auto;
+  min-width: 24px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgb(20 76 126 / 0.1);
+  font-size: 12px;
+}
+
 .front-menu-list button,
 .front-menu-foot button,
 .front-menu-toggle {
@@ -1270,6 +1306,8 @@ textarea:focus {
 }
 
 .front-pinterest-shell.menu-collapsed .front-menu-brand span,
+.front-pinterest-shell.menu-collapsed .front-catalog-switch span,
+.front-pinterest-shell.menu-collapsed .front-catalog-switch b,
 .front-pinterest-shell.menu-collapsed .front-menu-list span,
 .front-pinterest-shell.menu-collapsed .front-menu-foot span,
 .front-pinterest-shell.menu-collapsed .front-menu-list b {
@@ -1277,9 +1315,14 @@ textarea:focus {
 }
 
 .front-pinterest-shell.menu-collapsed .front-menu-head,
+.front-pinterest-shell.menu-collapsed .front-catalog-switch button,
 .front-pinterest-shell.menu-collapsed .front-menu-list button,
 .front-pinterest-shell.menu-collapsed .front-menu-foot button {
   justify-content: center;
+}
+
+.front-pinterest-shell.menu-collapsed .front-catalog-switch {
+  padding: 6px;
 }
 
 .front-workspace {
