@@ -1,0 +1,124 @@
+export type SampleStatus = "in_stock" | "borrowed" | "maintenance";
+export type SampleKind = "physical" | "digital3d";
+
+export interface BomItem {
+  id: string;
+  materialName: string;
+  usage: string;
+  color: string;
+  supplier: string;
+}
+
+export interface DesignFile {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+}
+
+export interface BorrowRecord {
+  id: string;
+  borrower: string;
+  team: string;
+  purpose: string;
+  borrowedAt: string;
+  dueAt: string;
+  returnedAt?: string;
+  note?: string;
+}
+
+export interface Sample {
+  id: string;
+  sku: string;
+  styleNo: string;
+  name: string;
+  englishName: string;
+  category: string;
+  season: string;
+  gender: string;
+  color: string;
+  size: string;
+  fabric: string;
+  composition: string;
+  craft: string;
+  styleTags: string[];
+  sampleKind: SampleKind;
+  status: SampleStatus;
+  location: string;
+  rack: string;
+  supplier: string;
+  retailPrice: string;
+  imageUrl: string;
+  enhancedImageUrl?: string;
+  threeDUrl: string;
+  bomItems: BomItem[];
+  designFiles: DesignFile[];
+  linkedStyles: string[];
+  linkedFabrics: string[];
+  linkedPatterns: string[];
+  visibilityScope: string;
+  favorite: boolean;
+  selected: boolean;
+  notes: string;
+  embedding?: number[];
+  borrowHistory: BorrowRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SampleDraft = Omit<
+  Sample,
+  "id" | "status" | "embedding" | "borrowHistory" | "createdAt" | "updatedAt"
+> & {
+  id?: string;
+  status?: SampleStatus;
+};
+
+export interface FieldCompletionResult {
+  fields: Partial<SampleDraft>;
+  confidence: number;
+  notes: string[];
+}
+
+export interface QuoteRequest {
+  sampleId: string;
+  quantity: number;
+  materialName?: string;
+  materialUnitCost?: number;
+}
+
+export interface QuoteResult {
+  sampleId: string;
+  sampleName: string;
+  quantity: number;
+  currency: string;
+  materialPlan: string;
+  materialCost: number;
+  accessoryCost: number;
+  processFee: number;
+  laborFee: number;
+  overhead: number;
+  margin: number;
+  unitPrice: number;
+  totalPrice: number;
+  assumptions: string[];
+  generatedAt: string;
+}
+
+export interface SimilarResult {
+  sample: Sample;
+  score: number;
+  reason: string;
+  quote?: QuoteResult;
+}
+
+export interface HealthPayload {
+  ok: boolean;
+  aiConfigured: boolean;
+  models: {
+    text: string;
+    vision: string;
+    embedding: string;
+    image: string;
+  };
+}
