@@ -1748,7 +1748,7 @@ function AiView(props: {
           <Field label="替换面辅料" value={props.materialName} onChange={props.setMaterialName} />
           <Field label="材料单件成本" value={props.materialUnitCost} onChange={props.setMaterialUnitCost} />
         </div>
-        <button disabled={props.busy === "search"} onClick={props.runSimilarSearch} type="button">
+        <button disabled={props.busy === "search"} onClick={() => void props.runSimilarSearch()} type="button">
           {props.busy === "search" ? <Loader2 className="spin" size={16} /> : <Search size={16} />}
           检索并报价
         </button>
