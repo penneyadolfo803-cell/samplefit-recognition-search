@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { BorrowRecord, Sample, SampleDraft } from "../src/lib/types";
+import type { BorrowRecord, BorrowRequest, Sample, SampleDraft } from "../src/lib/types";
 
 export interface Database {
   samples: Sample[];
+  borrowRequests: BorrowRequest[];
 }
 
 const dbPath = path.join(process.cwd(), "data", "db.json");
@@ -13,9 +14,13 @@ export async function readDb(): Promise<Database> {
 
   try {
     const content = await readFile(dbPath, "utf8");
-    return JSON.parse(content) as Database;
+    const db = JSON.parse(content) as Partial<Database>;
+    return {
+      samples: Array.isArray(db.samples) ? db.samples : seedSamples(),
+      borrowRequests: Array.isArray(db.borrowRequests) ? db.borrowRequests : []
+    };
   } catch {
-    const db = { samples: seedSamples() };
+    const db = { samples: seedSamples(), borrowRequests: [] };
     await writeDb(db);
     return db;
   }
@@ -92,6 +97,26 @@ export function createBorrowRecord(
     dueAt: payload.dueAt,
     note: payload.note,
     borrowedAt: new Date().toISOString()
+  };
+}
+
+export function createBorrowRequest(
+  sample: Sample,
+  payload: Pick<BorrowRequest, "requester" | "team" | "phone" | "purpose" | "dueAt" | "note">
+): BorrowRequest {
+  return {
+    id: crypto.randomUUID(),
+    sampleId: sample.id,
+    sampleSku: sample.sku,
+    sampleName: sample.name,
+    requester: payload.requester,
+    team: payload.team,
+    phone: payload.phone,
+    purpose: payload.purpose,
+    dueAt: payload.dueAt,
+    status: "pending",
+    note: payload.note,
+    createdAt: new Date().toISOString()
   };
 }
 

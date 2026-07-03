@@ -302,7 +302,11 @@ function extractImageUrl(payload: any) {
     return first.url;
   }
   if (first?.b64_json) {
-    return `data:image/png;base64,${first.b64_json}`;
+    const value = String(first.b64_json);
+    if (value.startsWith("http") || value.startsWith("data:")) {
+      return value;
+    }
+    return `data:image/png;base64,${value}`;
   }
   if (first?.image_url) {
     return first.image_url;
@@ -329,8 +333,9 @@ function extractEmbedding(payload: any): number[] {
 }
 
 const defaultEnhancePrompt = [
-  "优化这张样衣图片，用于服装样衣库归档。",
-  "保持衣服本身的版型、颜色、面料纹理、辅料和图案一致。",
-  "去除杂乱背景，提升光线和白平衡，输出干净的电商样衣图。",
-  "不要改变款式，不要添加模特，不要添加文字和水印。"
+  "将这张样衣图片美化为高质量白底模特图，用于服装样衣库归档、客户看样和业务报价。",
+  "保留原样衣的版型、廓形、颜色、面料纹理、辅料、口袋、纽扣、拼接、明线和图案，不要改款。",
+  "使用自然站姿的真人模特或无脸模特展示成衣上身效果，白色或浅灰纯净背景，正面构图，光线均匀。",
+  "衣服要平整、有质感，适当修正褶皱、曝光、白平衡和边缘瑕疵，但不能改变真实工艺细节。",
+  "不要添加文字、水印、吊牌、品牌标识、复杂场景或额外配饰。"
 ].join(" ");

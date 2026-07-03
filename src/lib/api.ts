@@ -1,5 +1,6 @@
 import type {
   BorrowRecord,
+  BorrowRequest,
   FieldCompletionResult,
   HealthPayload,
   QuoteRequest,
@@ -56,6 +57,25 @@ export function returnSample(id: string, note?: string) {
   return request<Sample>(`/api/samples/${id}/return`, {
     method: "POST",
     body: JSON.stringify({ note })
+  });
+}
+
+export function getBorrowRequests() {
+  return request<BorrowRequest[]>("/api/borrow-requests");
+}
+
+export function createBorrowRequest(payload: {
+  sampleId: string;
+  requester: string;
+  team: string;
+  phone: string;
+  purpose: string;
+  dueAt: string;
+  note?: string;
+}) {
+  return request<BorrowRequest>("/api/borrow-requests", {
+    method: "POST",
+    body: JSON.stringify(payload)
   });
 }
 

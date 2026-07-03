@@ -15,6 +15,7 @@ import {
 } from "./llm";
 import {
   createBorrowRecord,
+  createBorrowRequest,
   lexicalScore,
   mergeSample,
   readDb,
@@ -27,6 +28,7 @@ const app = express();
 const port = Number(process.env.PORT || 4174);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
+const fixedAiCreditsRemaining = 1200;
 
 app.use(cors());
 app.use(express.json({ limit: "30mb" }));
@@ -35,6 +37,7 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     aiConfigured: isAiConfigured(),
+    aiCreditsRemaining: fixedAiCreditsRemaining,
     models: getModelConfig()
   });
 });
@@ -134,6 +137,47 @@ app.post("/api/samples/:id/return", async (request, response, next) => {
     sample.updatedAt = new Date().toISOString();
     await writeDb(db);
     response.json(publicSample(sample));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/borrow-requests", async (_request, response, next) => {
+  try {
+    const db = await readDb();
+    response.json(db.borrowRequests);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/borrow-requests", async (request, response, next) => {
+  try {
+    const db = await readDb();
+    const sample = db.samples.find((item) => item.id === request.body.sampleId);
+
+    if (!sample) {
+      response.status(404).send("样衣不存在");
+      return;
+    }
+
+    const record = createBorrowRequest(sample, {
+      requester: cleanText(request.body.requester),
+      team: cleanText(request.body.team),
+      phone: cleanText(request.body.phone),
+      purpose: cleanText(request.body.purpose) || "客户看样",
+      dueAt: cleanText(request.body.dueAt) || new Date(Date.now() + 86400000 * 3).toISOString(),
+      note: cleanText(request.body.note)
+    });
+
+    if (!record.requester || !record.team) {
+      response.status(400).send("请填写申请人和业务组");
+      return;
+    }
+
+    db.borrowRequests.unshift(record);
+    await writeDb(db);
+    response.status(201).json(record);
   } catch (error) {
     next(error);
   }
@@ -245,7 +289,7 @@ app.use(
 );
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`SampleFit API running at http://127.0.0.1:${port}`);
+  console.log(`舜天信兴样衣管理系统 API running at http://127.0.0.1:${port}`);
 });
 
 async function tryEmbedding(imageUrl: string, text: string) {
@@ -268,4 +312,8 @@ function clamp(value: number, min: number, max: number) {
     return min;
   }
   return Math.min(max, Math.max(min, value));
+}
+
+function cleanText(value: unknown) {
+  return String(value || "").trim().slice(0, 200);
 }

@@ -27,6 +27,23 @@ export interface BorrowRecord {
   note?: string;
 }
 
+export type BorrowRequestStatus = "pending" | "approved" | "rejected" | "fulfilled";
+
+export interface BorrowRequest {
+  id: string;
+  sampleId: string;
+  sampleSku: string;
+  sampleName: string;
+  requester: string;
+  team: string;
+  phone: string;
+  purpose: string;
+  dueAt: string;
+  status: BorrowRequestStatus;
+  note?: string;
+  createdAt: string;
+}
+
 export interface Sample {
   id: string;
   sku: string;
@@ -115,6 +132,7 @@ export interface SimilarResult {
 export interface HealthPayload {
   ok: boolean;
   aiConfigured: boolean;
+  aiCreditsRemaining: number;
   models: {
     text: string;
     vision: string;

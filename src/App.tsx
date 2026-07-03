@@ -13,25 +13,32 @@ import {
   Camera,
   Check,
   ClipboardList,
+  Coins,
   Database,
   FileText,
   Heart,
   ImageUp,
   Loader2,
+  LogIn,
   PackagePlus,
   RotateCcw,
   Search,
+  Send,
   Shirt,
+  ShieldCheck,
   Sparkles,
   Upload,
+  UserRound,
   Wand2,
   type LucideIcon
 } from "lucide-react";
 import {
   borrowSample,
   completeFields,
+  createBorrowRequest,
   createSample,
   enhanceImage,
+  getBorrowRequests,
   getHealth,
   getSamples,
   returnSample,
@@ -47,6 +54,7 @@ import {
 import { fileToOptimizedDataUrl, formatTags } from "./lib/image";
 import type {
   BomItem,
+  BorrowRequest,
   DesignFile,
   HealthPayload,
   Sample,
@@ -55,6 +63,10 @@ import type {
 } from "./lib/types";
 
 type TabId = "library" | "entry" | "borrow" | "ai";
+type PortalMode = "admin" | "front";
+
+const appName = "舜天信兴样衣管理系统";
+const fixedAiCreditsRemaining = 1200;
 
 const emptyDraft: SampleDraft = {
   sku: "",
@@ -102,6 +114,13 @@ const statusText = {
   maintenance: "维护"
 };
 
+const borrowRequestStatusText = {
+  pending: "待设计部确认",
+  approved: "已同意",
+  rejected: "已驳回",
+  fulfilled: "已借出"
+};
+
 const kindText = {
   physical: "实物样衣",
   digital3d: "3D 样衣"
@@ -112,8 +131,10 @@ const isStaticDemoHost =
 
 function App() {
   const [samples, setSamples] = useState<Sample[]>([]);
+  const [borrowRequests, setBorrowRequests] = useState<BorrowRequest[]>([]);
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [portalMode, setPortalMode] = useState<PortalMode>("admin");
   const [tab, setTab] = useState<TabId>("library");
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<SampleDraft>(emptyDraft);
@@ -135,8 +156,17 @@ function App() {
   const [materialName, setMaterialName] = useState("");
   const [materialUnitCost, setMaterialUnitCost] = useState("");
   const [similarResults, setSimilarResults] = useState<SimilarResult[]>([]);
+  const [frontLogin, setFrontLogin] = useState({ name: "", team: "", phone: "" });
+  const [frontUser, setFrontUser] = useState<{ name: string; team: string; phone: string } | null>(null);
+  const [frontQuery, setFrontQuery] = useState("");
+  const [frontRequestForm, setFrontRequestForm] = useState({
+    purpose: "客户看样",
+    dueAt: "",
+    note: ""
+  });
 
   const selected = samples.find((sample) => sample.id === selectedId) || samples[0];
+  const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
 
   const filteredSamples = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -161,14 +191,34 @@ function App() {
     });
   }, [samples, query, statusFilter, kindFilter]);
 
+  const frontSamples = useMemo(() => {
+    const term = frontQuery.trim().toLowerCase();
+    return samples.filter((sample) => {
+      const haystack = [
+        sample.sku,
+        sample.styleNo,
+        sample.name,
+        sample.category,
+        sample.color,
+        sample.fabric,
+        sample.location,
+        sample.styleTags.join(" ")
+      ]
+        .join(" ")
+        .toLowerCase();
+      return !term || haystack.includes(term);
+    });
+  }, [samples, frontQuery]);
+
   const metrics = useMemo(() => {
     return {
       total: samples.length,
       inStock: samples.filter((sample) => sample.status === "in_stock").length,
       borrowed: samples.filter((sample) => sample.status === "borrowed").length,
-      selected: samples.filter((sample) => sample.selected).length
+      selected: samples.filter((sample) => sample.selected).length,
+      requests: borrowRequests.filter((request) => request.status === "pending").length
     };
-  }, [samples]);
+  }, [samples, borrowRequests]);
 
   useEffect(() => {
     void reload();
@@ -182,9 +232,14 @@ function App() {
       return;
     }
     try {
-      const [healthPayload, samplePayload] = await Promise.all([getHealth(), getSamples()]);
+      const [healthPayload, samplePayload, requestPayload] = await Promise.all([
+        getHealth(),
+        getSamples(),
+        getBorrowRequests()
+      ]);
       setHealth(healthPayload);
       setSamples(samplePayload);
+      setBorrowRequests(requestPayload);
       setSelectedId((current) => current || samplePayload[0]?.id || "");
       setDemoMode(false);
     } catch (error) {
@@ -200,6 +255,7 @@ function App() {
     setHealth({
       ok: true,
       aiConfigured: false,
+      aiCreditsRemaining: fixedAiCreditsRemaining,
       models: {
         text: "static-demo",
         vision: "static-demo",
@@ -208,8 +264,70 @@ function App() {
       }
     });
     setSamples(demoSamples);
+    setBorrowRequests([]);
     setSelectedId((current) => current || demoSamples[0]?.id || "");
     setNotice("当前为网页演示模式，真实 AI 能力需部署后端服务");
+  }
+
+  function loginFrontDesk() {
+    if (!frontLogin.name.trim() || !frontLogin.team.trim()) {
+      setNotice("请填写业务员姓名和业务组");
+      return;
+    }
+    setFrontUser({
+      name: frontLogin.name.trim(),
+      team: frontLogin.team.trim(),
+      phone: frontLogin.phone.trim()
+    });
+    setNotice("已进入业务前台，可查看设计部样衣并提交借出申请");
+  }
+
+  async function submitFrontBorrowRequest(sample: Sample) {
+    if (!frontUser) {
+      setNotice("请先通过业务前台入口登录");
+      return;
+    }
+    setBusy("front-request");
+    setNotice("");
+    try {
+      const payload = {
+        sampleId: sample.id,
+        requester: frontUser.name,
+        team: frontUser.team,
+        phone: frontUser.phone,
+        purpose: frontRequestForm.purpose || "客户看样",
+        dueAt: frontRequestForm.dueAt || new Date(Date.now() + 86400000 * 3).toISOString(),
+        note: frontRequestForm.note
+      };
+
+      if (demoMode) {
+        const request: BorrowRequest = {
+          id: uid(),
+          sampleId: sample.id,
+          sampleSku: sample.sku,
+          sampleName: sample.name,
+          requester: payload.requester,
+          team: payload.team,
+          phone: payload.phone,
+          purpose: payload.purpose,
+          dueAt: payload.dueAt,
+          status: "pending",
+          note: payload.note,
+          createdAt: new Date().toISOString()
+        };
+        setBorrowRequests((current) => [request, ...current]);
+        setNotice("演示模式已提交借出申请，等待设计部确认");
+        return;
+      }
+
+      const request = await createBorrowRequest(payload);
+      setBorrowRequests((current) => [request, ...current]);
+      setNotice("借出申请已提交，等待设计部确认");
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusy("");
+    }
   }
 
   function startCreate() {
@@ -296,12 +414,12 @@ function App() {
     try {
       if (demoMode) {
         setDraft((current) => ({ ...current, enhancedImageUrl: current.imageUrl }));
-        setNotice("演示模式保留原图，真实美化需后端 AI 服务");
+        setNotice("演示模式保留原图，白底模特图需后端真实 AI 服务");
         return;
       }
       const result = await enhanceImage(draft.imageUrl);
       setDraft((current) => ({ ...current, enhancedImageUrl: result.imageUrl }));
-      setNotice("AI 美化图片已生成");
+      setNotice("AI 白底模特图已生成");
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -456,29 +574,50 @@ function App() {
             <Shirt size={22} />
           </div>
           <div>
-            <strong>SampleFit</strong>
-            <span>样衣识别检索系统</span>
+            <strong>舜天信兴</strong>
+            <span>样衣管理系统</span>
           </div>
         </div>
 
-        <nav className="side-nav">
-          {tabs.map((item) => (
-            <button
-              className={tab === item.id ? "active" : ""}
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              type="button"
-            >
-              <item.icon size={18} />
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <div className="portal-switch">
+          <button
+            className={portalMode === "admin" ? "active" : ""}
+            onClick={() => setPortalMode("admin")}
+            type="button"
+          >
+            <ShieldCheck size={17} />
+            设计部后台
+          </button>
+          <button
+            className={portalMode === "front" ? "active" : ""}
+            onClick={() => setPortalMode("front")}
+            type="button"
+          >
+            <LogIn size={17} />
+            业务前台
+          </button>
+        </div>
+
+        {portalMode === "admin" && (
+          <nav className="side-nav">
+            {tabs.map((item) => (
+              <button
+                className={tab === item.id ? "active" : ""}
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                type="button"
+              >
+                <item.icon size={18} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         <div className="model-card">
           <span className={health?.aiConfigured ? "dot ok" : "dot"} />
           <div>
-          <strong>{demoMode ? "网页演示" : health?.aiConfigured ? "AI 已接入" : "AI 未配置"}</strong>
+            <strong>{demoMode ? "网页演示" : health?.aiConfigured ? "真实 AI 已接入" : "AI 未配置"}</strong>
             <small>{health?.models.embedding || "等待服务启动"}</small>
           </div>
         </div>
@@ -487,35 +626,61 @@ function App() {
       <main className="main">
         <header className="topbar">
           <div>
-            <p className="eyebrow">样衣识别检索与自动报价</p>
-            <h1>{titleFor(tab)}</h1>
+            <p className="eyebrow">{appName}</p>
+            <h1>{portalMode === "front" ? "业务前台借样入口" : titleFor(tab)}</h1>
           </div>
           <div className="top-actions">
+            <div className="credit-pill">
+              <Coins size={16} />
+              <span>AI 积分剩余</span>
+              <strong>{aiCreditsRemaining}</strong>
+            </div>
             <button className="ghost" onClick={() => void reload()} type="button">
               <RotateCcw size={16} />
               刷新
             </button>
-            <button onClick={startCreate} type="button">
-              <PackagePlus size={16} />
-              新增样衣
-            </button>
+            {portalMode === "admin" && (
+              <button onClick={startCreate} type="button">
+                <PackagePlus size={16} />
+                新增样衣
+              </button>
+            )}
           </div>
         </header>
 
         {notice && <div className="notice">{notice}</div>}
 
-        <section className="metrics">
-          <Metric icon={Boxes} label="在线样衣" value={metrics.total} />
-          <Metric icon={BadgeCheck} label="可借在库" value={metrics.inStock} />
-          <Metric icon={Archive} label="当前借出" value={metrics.borrowed} />
-          <Metric icon={Check} label="已选样" value={metrics.selected} />
-        </section>
+        {portalMode === "admin" && (
+          <section className="metrics">
+            <Metric icon={Boxes} label="在线样衣" value={metrics.total} />
+            <Metric icon={BadgeCheck} label="可借在库" value={metrics.inStock} />
+            <Metric icon={Archive} label="当前借出" value={metrics.borrowed} />
+            <Metric icon={ClipboardList} label="待处理申请" value={metrics.requests} />
+          </section>
+        )}
 
         {busy === "load" ? (
           <div className="loading">
             <Loader2 className="spin" size={22} />
             加载中
           </div>
+        ) : portalMode === "front" ? (
+          <FrontDeskView
+            busy={busy}
+            frontLogin={frontLogin}
+            frontQuery={frontQuery}
+            frontRequestForm={frontRequestForm}
+            frontSamples={frontSamples}
+            frontUser={frontUser}
+            requests={borrowRequests}
+            selected={selected}
+            setFrontLogin={setFrontLogin}
+            setFrontQuery={setFrontQuery}
+            setFrontRequestForm={setFrontRequestForm}
+            setSelectedId={setSelectedId}
+            loginFrontDesk={loginFrontDesk}
+            submitFrontBorrowRequest={submitFrontBorrowRequest}
+          />
         ) : (
           <>
             {tab === "library" && (
@@ -583,11 +748,22 @@ function App() {
       </main>
 
       <nav className="mobile-nav">
+        <button
+          className={portalMode === "front" ? "active" : ""}
+          onClick={() => setPortalMode("front")}
+          type="button"
+        >
+          <LogIn size={18} />
+          <span>前台</span>
+        </button>
         {tabs.map((item) => (
           <button
-            className={tab === item.id ? "active" : ""}
+            className={portalMode === "admin" && tab === item.id ? "active" : ""}
             key={item.id}
-            onClick={() => setTab(item.id)}
+            onClick={() => {
+              setPortalMode("admin");
+              setTab(item.id);
+            }}
             type="button"
           >
             <item.icon size={18} />
@@ -801,7 +977,7 @@ function EntryView(props: {
           </label>
           <button className="ghost" disabled={props.busy === "enhance"} onClick={props.runEnhanceImage} type="button">
             {props.busy === "enhance" ? <Loader2 className="spin" size={16} /> : <Wand2 size={16} />}
-            AI 美化
+            AI 白底模特图
           </button>
         </div>
       </div>
@@ -1090,6 +1266,190 @@ function AiView(props: {
               </div>
             </button>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FrontDeskView(props: {
+  busy: string;
+  frontLogin: { name: string; team: string; phone: string };
+  frontQuery: string;
+  frontRequestForm: { purpose: string; dueAt: string; note: string };
+  frontSamples: Sample[];
+  frontUser: { name: string; team: string; phone: string } | null;
+  requests: BorrowRequest[];
+  selected?: Sample;
+  setFrontLogin: Dispatch<SetStateAction<{ name: string; team: string; phone: string }>>;
+  setFrontQuery: (value: string) => void;
+  setFrontRequestForm: Dispatch<SetStateAction<{ purpose: string; dueAt: string; note: string }>>;
+  setSelectedId: (value: string) => void;
+  loginFrontDesk: () => void;
+  submitFrontBorrowRequest: (sample: Sample) => Promise<void>;
+}) {
+  const userRequests = props.frontUser
+    ? props.requests.filter((request) => request.requester === props.frontUser?.name)
+    : [];
+
+  if (!props.frontUser) {
+    return (
+      <section className="front-login-layout">
+        <div className="panel front-hero-panel">
+          <p className="eyebrow">业务前台</p>
+          <h2>业务员登录后可查看设计部在线样衣</h2>
+          <p>前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。</p>
+          <div className="front-hero-stats">
+            <span>在线样衣 {props.frontSamples.length}</span>
+            <span>可申请 {props.frontSamples.filter((sample) => sample.status === "in_stock").length}</span>
+            <span>待处理 {props.requests.filter((request) => request.status === "pending").length}</span>
+          </div>
+        </div>
+        <div className="panel front-login-card">
+          <div className="form-toolbar">
+            <div>
+              <h2>前台入口登录</h2>
+              <p>用于记录申请人和业务组</p>
+            </div>
+            <UserRound size={24} />
+          </div>
+          <Field
+            label="业务员姓名"
+            value={props.frontLogin.name}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, name: value }))}
+          />
+          <Field
+            label="业务组"
+            value={props.frontLogin.team}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, team: value }))}
+          />
+          <Field
+            label="手机"
+            value={props.frontLogin.phone}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, phone: value }))}
+          />
+          <button onClick={props.loginFrontDesk} type="button">
+            <LogIn size={16} />
+            进入前台
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="front-desk-layout">
+      <div className="panel front-catalog-panel">
+        <div className="front-user-line">
+          <div>
+            <strong>{props.frontUser.name}</strong>
+            <span>{props.frontUser.team}</span>
+          </div>
+          <small>前台可见设计部样衣</small>
+        </div>
+        <label className="search-box">
+          <Search size={16} />
+          <input
+            onChange={(event) => props.setFrontQuery(event.target.value)}
+            placeholder="搜索款号、品类、颜色、面料"
+            value={props.frontQuery}
+          />
+        </label>
+        <div className="front-sample-grid">
+          {props.frontSamples.map((sample) => (
+            <button
+              className={`front-sample-card ${props.selected?.id === sample.id ? "active" : ""}`}
+              key={sample.id}
+              onClick={() => props.setSelectedId(sample.id)}
+              type="button"
+            >
+              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <div>
+                <strong>{sample.name}</strong>
+                <span>{sample.sku} · {sample.category}</span>
+                <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel front-request-panel">
+        {props.selected ? (
+          <>
+            <img alt={props.selected.name} src={props.selected.enhancedImageUrl || props.selected.imageUrl} />
+            <div className="detail-head compact-head">
+              <div>
+                <p className="eyebrow">{props.selected.sku}</p>
+                <h2>{props.selected.name}</h2>
+                <p>{props.selected.color} · {props.selected.fabric}</p>
+              </div>
+              <span className={`status ${props.selected.status}`}>{statusText[props.selected.status]}</span>
+            </div>
+            <div className="info-grid">
+              <Info label="位置" value={`${props.selected.location} ${props.selected.rack}`} />
+              <Info label="季节" value={props.selected.season} />
+              <Info label="尺码" value={props.selected.size} />
+              <Info label="供应商" value={props.selected.supplier} />
+            </div>
+            <div className="front-request-form">
+              <Field
+                label="借样用途"
+                value={props.frontRequestForm.purpose}
+                onChange={(value) => props.setFrontRequestForm((current) => ({ ...current, purpose: value }))}
+              />
+              <label>
+                期望归还
+                <input
+                  onChange={(event) =>
+                    props.setFrontRequestForm((current) => ({ ...current, dueAt: event.target.value }))
+                  }
+                  type="datetime-local"
+                  value={props.frontRequestForm.dueAt}
+                />
+              </label>
+              <label>
+                备注
+                <textarea
+                  onChange={(event) =>
+                    props.setFrontRequestForm((current) => ({ ...current, note: event.target.value }))
+                  }
+                  value={props.frontRequestForm.note}
+                />
+              </label>
+              <button
+                disabled={props.busy === "front-request"}
+                onClick={() => void props.submitFrontBorrowRequest(props.selected as Sample)}
+                type="button"
+              >
+                {props.busy === "front-request" ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
+                提交借出申请
+              </button>
+            </div>
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+
+      <div className="panel front-history-panel">
+        <h2>我的申请</h2>
+        <div className="history-list">
+          {userRequests.length ? (
+            userRequests.map((request) => (
+              <div key={request.id}>
+                <strong>{request.sampleName}</strong>
+                <span>{request.sampleSku} · {request.purpose}</span>
+                <small>{formatDate(request.createdAt)} 提交</small>
+                <small>{borrowRequestStatusText[request.status]}</small>
+              </div>
+            ))
+          ) : (
+            <div>
+              <strong>暂无申请</strong>
+              <span>选择样衣后提交借出需求</span>
+            </div>
+          )}
         </div>
       </div>
     </section>
