@@ -654,8 +654,9 @@ function App() {
     }
   }
 
-  async function runSimilarSearch() {
-    if (!searchImage && !searchText.trim()) {
+  async function runSimilarSearch(textOverride?: string) {
+    const queryText = textOverride ?? searchText;
+    if (!searchImage && !queryText.trim()) {
       setNotice("请上传拍摄图或输入检索词");
       return;
     }
@@ -665,7 +666,7 @@ function App() {
       if (demoMode) {
         const results = searchDemoSamples(samples, {
           imageDataUrl: searchImage,
-          text: searchText,
+          text: queryText,
           threshold: similarityThreshold,
           quantity: quoteQuantity,
           materialName,
@@ -677,7 +678,7 @@ function App() {
       }
       const results = await searchSimilar({
         imageDataUrl: searchImage,
-        text: searchText,
+        text: queryText,
         threshold: similarityThreshold,
         quantity: quoteQuantity,
         materialName: materialName || undefined,
@@ -937,11 +938,14 @@ function App() {
             frontSelectedSamples={frontSelectedSamples}
             frontUser={frontUser}
             requests={borrowRequests}
+            searchImage={searchImage}
             selected={selected}
+            similarResults={similarResults}
             aiCreditsRemaining={aiCreditsRemaining}
             generateFrontPpt={generateFrontPpt}
             openProfile={() => setShowProfile(true)}
             reload={reload}
+            runFrontVisualSearch={() => runSimilarSearch("")}
             setPortalMode={setPortalMode}
             setFrontLogin={setFrontLogin}
             setFrontQuery={setFrontQuery}
@@ -952,6 +956,7 @@ function App() {
             toggleFrontFavorite={toggleFrontFavorite}
             toggleFrontLike={toggleFrontLike}
             toggleFrontSelect={toggleFrontSelect}
+            uploadSearchImage={uploadSearchImage}
           />
         ) : (
           <>
@@ -1757,10 +1762,13 @@ function FrontDeskPinterestView(props: {
   frontSelectedSamples: Sample[];
   frontUser: { name: string; team: string; phone: string } | null;
   requests: BorrowRequest[];
+  searchImage: string;
   selected?: Sample;
+  similarResults: SimilarResult[];
   generateFrontPpt: () => Promise<void>;
   openProfile: () => void;
   reload: () => Promise<void>;
+  runFrontVisualSearch: () => Promise<void>;
   setPortalMode: (value: PortalMode) => void;
   setFrontLogin: Dispatch<SetStateAction<{ name: string; team: string; phone: string }>>;
   setFrontQuery: (value: string) => void;
@@ -1771,10 +1779,13 @@ function FrontDeskPinterestView(props: {
   toggleFrontFavorite: (sample: Sample) => void;
   toggleFrontLike: (sample: Sample) => void;
   toggleFrontSelect: (sample: Sample) => void;
+  uploadSearchImage: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
 }) {
   const [frontFilter, setFrontFilter] = useState<"all" | "available" | "favorites" | "selected">("all");
   const [frontDetailId, setFrontDetailId] = useState<string | null>(null);
   const [menuCollapsed, setMenuCollapsed] = useState(false);
+  const [visualSearchOpen, setVisualSearchOpen] = useState(false);
+  const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
   const visibleSamples = props.frontSamples.filter((sample) => {
     if (frontFilter === "available") {
       return sample.status === "in_stock";
@@ -1814,10 +1825,26 @@ function FrontDeskPinterestView(props: {
     { id: "selected" as const, label: "已选", icon: CheckSquare, count: props.frontSelectedIds.length }
   ];
   const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
+  const frontSampleIds = new Set(props.frontSamples.map((sample) => sample.id));
+  const frontVisualResults = visualSearchHasRun
+    ? props.similarResults.filter((result) => frontSampleIds.has(result.sample.id)).slice(0, 12)
+    : [];
 
   const openSample = (sample: Sample) => {
     props.setSelectedId(sample.id);
     setFrontDetailId(sample.id);
+  };
+  const openVisualSearch = () => {
+    setVisualSearchHasRun(false);
+    setVisualSearchOpen(true);
+  };
+  const uploadFrontSearchImage = async (event: ChangeEvent<HTMLInputElement>) => {
+    setVisualSearchHasRun(false);
+    await props.uploadSearchImage(event);
+  };
+  const runFrontSearch = async () => {
+    await props.runFrontVisualSearch();
+    setVisualSearchHasRun(true);
   };
 
   const renderPinCard = (sample: Sample, compact = false) => {
@@ -1970,10 +1997,19 @@ function FrontDeskPinterestView(props: {
 
       <div className="front-workspace">
         <header className="front-floating-topbar">
-          <label className="front-search-pill">
+          <div className="front-search-pill">
             <Search size={16} />
             <input onChange={(event) => props.setFrontQuery(event.target.value)} placeholder="搜索" value={props.frontQuery} />
-          </label>
+            <button
+              aria-label="拍照搜款"
+              className="front-visual-trigger"
+              onClick={openVisualSearch}
+              title="拍照或上传图片搜类似款"
+              type="button"
+            >
+              <Camera size={18} />
+            </button>
+          </div>
           <div className="front-top-actions">
             <span className="front-credit-chip">
               <Coins size={15} />
@@ -2155,6 +2191,92 @@ function FrontDeskPinterestView(props: {
           </div>
         )}
       </div>
+
+      {visualSearchOpen && (
+        <div className="front-visual-backdrop" role="presentation">
+          <section className="front-visual-panel" role="dialog" aria-label="拍照搜款">
+            <div className="profile-head">
+              <div>
+                <p className="eyebrow">拍照搜款</p>
+                <h2>上传图片检索类似样衣</h2>
+                <span>支持现场拍照或从相册选择，结果仅展示设计部前台样衣。</span>
+              </div>
+              <button className="icon-button" onClick={() => setVisualSearchOpen(false)} type="button">
+                <X size={17} />
+              </button>
+            </div>
+
+            <div className="front-visual-body">
+              <div className="front-visual-upload">
+                <div className="image-preview compact">
+                  {props.searchImage ? (
+                    <img alt="拍照搜款" src={props.searchImage} />
+                  ) : (
+                    <div className="empty-image">
+                      <Camera size={28} />
+                      <span>拍照或上传图片</span>
+                    </div>
+                  )}
+                </div>
+                <label className="file-button wide">
+                  <ImageUp size={16} />
+                  选择图片
+                  <input accept="image/*" capture="environment" onChange={uploadFrontSearchImage} type="file" />
+                </label>
+                <button disabled={props.busy === "search" || !props.searchImage} onClick={() => void runFrontSearch()} type="button">
+                  {props.busy === "search" ? <Loader2 className="spin" size={16} /> : <Search size={16} />}
+                  搜类似款
+                </button>
+              </div>
+
+              <div className="front-visual-results">
+                <div className="front-board-head">
+                  <div>
+                    <p className="eyebrow">检索结果</p>
+                    <h2>
+                      {frontVisualResults.length
+                        ? `${frontVisualResults.length} 个候选款`
+                        : visualSearchHasRun
+                          ? "未找到候选款"
+                          : "等待上传图片"}
+                    </h2>
+                  </div>
+                </div>
+                {frontVisualResults.length ? (
+                  <div className="front-visual-result-grid">
+                    {frontVisualResults.map((result) => {
+                      const sample = props.frontSamples.find((item) => item.id === result.sample.id) || result.sample;
+                      return (
+                        <button
+                          className="front-visual-result"
+                          key={result.sample.id}
+                          onClick={() => {
+                            openSample(sample);
+                            setVisualSearchOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+                          <div>
+                            <strong>{sample.name}</strong>
+                            <span>{sample.sku} · {Math.round(result.score * 100)}%</span>
+                            <small>{result.reason}</small>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <Search size={28} />
+                    <span>{visualSearchHasRun ? "换一张图片再试" : "上传图片后点击搜类似款"}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </section>
   );
 }
