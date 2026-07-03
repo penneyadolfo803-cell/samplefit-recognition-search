@@ -373,6 +373,32 @@ function App() {
     setNotice("当前为网页演示模式，真实 AI 能力需部署后端服务");
   }
 
+  async function ensureLiveAiBackend() {
+    if (!isStaticDemoHost && !demoMode && health?.aiConfigured) {
+      return true;
+    }
+    if (isStaticDemoHost) {
+      return false;
+    }
+
+    try {
+      const healthPayload = await getHealth();
+      setHealth(healthPayload);
+      if (healthPayload.aiConfigured) {
+        const [samplePayload, requestPayload] = await Promise.all([getSamples(), getBorrowRequests()]);
+        setSamples(samplePayload);
+        setBorrowRequests(requestPayload);
+        setSelectedId((current) => current || samplePayload[0]?.id || "");
+        setDemoMode(false);
+        return true;
+      }
+    } catch {
+      return false;
+    }
+
+    return false;
+  }
+
   function loginFrontDesk() {
     if (!frontLogin.name.trim() || !frontLogin.team.trim()) {
       setNotice("请填写业务员姓名和业务组");
@@ -602,7 +628,8 @@ function App() {
     setBusy("complete");
     setNotice("");
     try {
-      if (demoMode) {
+      const useLiveAi = await ensureLiveAiBackend();
+      if (!useLiveAi) {
         const result = inferDemoFields(draft);
         setDraft((current) => ({
           ...current,
@@ -637,7 +664,8 @@ function App() {
     setBusy("enhance");
     setNotice("");
     try {
-      if (demoMode) {
+      const useLiveAi = await ensureLiveAiBackend();
+      if (!useLiveAi) {
         setDraft((current) => ({ ...current, enhancedImageUrl: current.imageUrl }));
         setNotice("演示模式保留原图，白底模特图需后端真实 AI 服务");
         return;
@@ -661,7 +689,8 @@ function App() {
     setBusy("search");
     setNotice("");
     try {
-      if (demoMode) {
+      const useLiveAi = await ensureLiveAiBackend();
+      if (!useLiveAi) {
         const results = searchDemoSamples(samples, {
           imageDataUrl: searchImage,
           text: queryText,
