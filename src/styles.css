@@ -1914,12 +1914,9 @@ textarea:focus {
   }
 
   .app-shell.front-mode .notice {
-    top: auto;
-    right: 10px;
-    bottom: 12px;
-    left: 10px;
+    position: static;
+    margin: 8px 10px 0;
     max-width: none;
-    z-index: 70;
   }
 
   .front-pinterest-shell,
