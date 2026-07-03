@@ -1,21 +1,24 @@
 :root {
-  color: #17201b;
-  background: #eef2ea;
+  color: #13222c;
+  background: #dfeaf6;
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --bg: #eef2ea;
-  --panel: #fbfcf8;
-  --panel-strong: #ffffff;
-  --ink: #17201b;
-  --muted: #69736d;
-  --line: #d9dfd5;
-  --accent: #0d7f5c;
-  --accent-dark: #075f45;
+  --bg: #dfeaf6;
+  --panel: rgb(255 255 255 / 0.36);
+  --panel-strong: rgb(255 255 255 / 0.58);
+  --ink: #13222c;
+  --muted: #51616f;
+  --line: rgb(255 255 255 / 0.48);
+  --accent: #1f74c9;
+  --accent-dark: #0d4d93;
   --blue: #2f65d9;
-  --orange: #d95d2f;
-  --shadow: 0 18px 48px rgb(23 32 27 / 0.11);
+  --orange: #c85631;
+  --shadow: 0 22px 70px rgb(53 82 112 / 0.18);
+  --glass-border: 1px solid rgb(255 255 255 / 0.52);
+  --glass-fill: linear-gradient(145deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.22));
+  --glass-blur: blur(26px) saturate(165%) contrast(1.04);
 }
 
 * {
@@ -26,6 +29,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    linear-gradient(120deg, rgb(236 246 255 / 0.2), rgb(255 255 255 / 0.08)),
+    url("../backgrounds/liquid-glass-desktop.png") center / cover fixed;
 }
 
 button,
@@ -38,8 +44,10 @@ textarea {
 button {
   border: 0;
   border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.12)),
+    rgb(27 111 198 / 0.82);
+  color: #f8fbff;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -47,11 +55,22 @@ button {
   gap: 8px;
   min-height: 40px;
   padding: 0 14px;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  border: 1px solid rgb(255 255 255 / 0.36);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.58),
+    0 10px 24px rgb(27 90 145 / 0.2);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 button:hover {
-  background: var(--accent-dark);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.42), rgb(255 255 255 / 0.16)),
+    rgb(13 77 147 / 0.9);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 14px 34px rgb(27 90 145 / 0.26);
 }
 
 button:active {
@@ -65,32 +84,52 @@ button:disabled {
 
 .ghost,
 .icon-button {
-  background: transparent;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.48), rgb(255 255 255 / 0.16));
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: var(--glass-border);
 }
 
 .ghost:hover,
 .icon-button:hover {
-  background: #edf4ec;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.66), rgb(255 255 255 / 0.24));
 }
 
 .app-shell {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
+  position: relative;
+  isolation: isolate;
+}
+
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 18% 10%, rgb(255 255 255 / 0.62), transparent 28%),
+    radial-gradient(circle at 78% 2%, rgb(159 202 255 / 0.26), transparent 34%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(210 226 243 / 0.22));
+  pointer-events: none;
 }
 
 .sidebar {
   min-height: 100vh;
-  background: #1b241f;
-  color: #f5f8f1;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.08)),
+    rgb(18 35 52 / 0.34);
+  color: #f7fbff;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
   position: sticky;
   top: 0;
+  border-right: 1px solid rgb(255 255 255 / 0.34);
+  backdrop-filter: blur(34px) saturate(170%);
+  -webkit-backdrop-filter: blur(34px) saturate(170%);
+  box-shadow: 18px 0 58px rgb(35 65 93 / 0.12);
 }
 
 .brand {
@@ -106,7 +145,7 @@ button:disabled {
 
 .brand span,
 .model-card small {
-  color: #aebaae;
+  color: rgb(244 249 255 / 0.74);
   font-size: 12px;
 }
 
@@ -116,8 +155,10 @@ button:disabled {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #e8f4dc;
-  color: #1b241f;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.22));
+  color: #12314d;
+  border: 1px solid rgb(255 255 255 / 0.48);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.72);
 }
 
 .side-nav {
@@ -128,21 +169,25 @@ button:disabled {
 .side-nav button {
   justify-content: flex-start;
   background: transparent;
-  color: #dce6dc;
+  color: rgb(248 251 255 / 0.86);
+  box-shadow: none;
 }
 
 .side-nav button.active,
 .side-nav button:hover {
-  background: #314239;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.12));
+  border-color: rgb(255 255 255 / 0.42);
 }
 
 .model-card {
   margin-top: auto;
-  border: 1px solid #3d4c43;
+  border: 1px solid rgb(255 255 255 / 0.34);
   border-radius: 8px;
   padding: 14px;
   display: flex;
   gap: 10px;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0.08));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.24);
 }
 
 .dot {
@@ -192,7 +237,7 @@ button:disabled {
 }
 
 .eyebrow {
-  color: var(--accent-dark);
+  color: #0c579d;
   font-size: 12px;
   font-weight: 700;
   margin: 0 0 6px;
@@ -205,11 +250,13 @@ button:disabled {
 
 .notice {
   margin-bottom: 16px;
-  border: 1px solid #cfe0cc;
-  background: #f7fbf1;
-  color: #20452f;
+  border: var(--glass-border);
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.62), rgb(255 255 255 / 0.24));
+  color: #12334d;
   border-radius: 8px;
   padding: 12px 14px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .metrics {
@@ -219,13 +266,16 @@ button:disabled {
 }
 
 .metric {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  background: var(--glass-fill);
+  border: var(--glass-border);
   border-radius: 8px;
   padding: 14px;
   display: grid;
   gap: 5px;
   min-height: 104px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow), inset 0 1px 0 rgb(255 255 255 / 0.62);
 }
 
 .metric svg {
@@ -245,10 +295,23 @@ button:disabled {
 }
 
 .panel {
-  background: rgb(251 252 248 / 0.94);
-  border: 1px solid var(--line);
+  background: var(--glass-fill);
+  border: var(--glass-border);
   border-radius: 8px;
   box-shadow: var(--shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  pointer-events: none;
 }
 
 .library-grid {
@@ -302,13 +365,16 @@ input,
 select,
 textarea {
   width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.58);
   border-radius: 8px;
-  background: var(--panel-strong);
+  background: rgb(255 255 255 / 0.52);
   color: var(--ink);
   min-height: 40px;
   padding: 9px 11px;
   outline: none;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.46);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
 }
 
 textarea {
@@ -333,9 +399,9 @@ textarea:focus {
 
 .sample-card {
   width: 100%;
-  background: var(--panel-strong);
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.52), rgb(255 255 255 / 0.18));
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: var(--glass-border);
   padding: 8px;
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
@@ -344,8 +410,8 @@ textarea:focus {
 
 .sample-card:hover,
 .sample-card.active {
-  background: #f1f7ee;
-  border-color: #adc9b8;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.28));
+  border-color: rgb(92 153 214 / 0.42);
 }
 
 .sample-card img {
@@ -409,11 +475,11 @@ textarea:focus {
 .tag-row span,
 .file-list span,
 .pill-group b {
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.48);
   border-radius: 999px;
   padding: 4px 8px;
-  color: #344039;
-  background: #f8faf5;
+  color: #233948;
+  background: rgb(255 255 255 / 0.4);
   font-size: 12px;
   font-weight: 600;
 }
@@ -425,7 +491,7 @@ textarea:focus {
 
 .detail-media {
   position: relative;
-  background: #e4eadf;
+  background: rgb(255 255 255 / 0.32);
   border-radius: 8px;
   overflow: hidden;
   min-height: 280px;
@@ -493,10 +559,10 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr 0.8fr 1fr;
   gap: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.48);
   border-radius: 8px;
   padding: 9px 10px;
-  background: #fff;
+  background: rgb(255 255 255 / 0.42);
   font-size: 13px;
 }
 
@@ -516,8 +582,8 @@ textarea:focus {
 
 .borrow-banner {
   border-radius: 8px;
-  background: #fff4e8;
-  border: 1px solid #ffd3a8;
+  background: linear-gradient(145deg, rgb(255 246 232 / 0.7), rgb(255 255 255 / 0.24));
+  border: 1px solid rgb(255 211 168 / 0.7);
   padding: 12px;
   display: grid;
   gap: 4px;
@@ -539,8 +605,8 @@ textarea:focus {
 .image-preview {
   width: 100%;
   aspect-ratio: 4 / 5;
-  background: #e8ede4;
-  border: 1px dashed #bcc8bc;
+  background: rgb(255 255 255 / 0.28);
+  border: 1px dashed rgb(255 255 255 / 0.58);
   border-radius: 8px;
   overflow: hidden;
   display: grid;
@@ -564,7 +630,9 @@ textarea:focus {
 .file-button {
   min-height: 40px;
   border-radius: 8px;
-  background: #1b241f;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.12)),
+    rgb(18 48 78 / 0.82);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -651,7 +719,7 @@ textarea:focus {
 }
 
 .history-list div {
-  border: 1px solid var(--line);
+  border: 1px solid rgb(255 255 255 / 0.48);
   border-radius: 8px;
   padding: 12px;
   display: grid;
@@ -676,9 +744,9 @@ textarea:focus {
 }
 
 .result-list button {
-  background: #fff;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.58), rgb(255 255 255 / 0.2));
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: var(--glass-border);
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr);
   gap: 12px;
@@ -687,7 +755,7 @@ textarea:focus {
 }
 
 .result-list button:hover {
-  background: #f2f7ef;
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.76), rgb(255 255 255 / 0.3));
 }
 
 .result-list img {
@@ -750,10 +818,15 @@ textarea:focus {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 6px;
-    background: #1b241f;
+    background:
+      linear-gradient(145deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.1)),
+      rgb(21 42 62 / 0.62);
     border-radius: 8px;
     padding: 8px;
     box-shadow: 0 16px 36px rgb(0 0 0 / 0.22);
+    border: 1px solid rgb(255 255 255 / 0.42);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
   }
 
   .mobile-nav button {
@@ -767,11 +840,17 @@ textarea:focus {
   }
 
   .mobile-nav button.active {
-    background: #314239;
+    background: linear-gradient(145deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.12));
   }
 }
 
 @media (max-width: 720px) {
+  body {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(219 235 250 / 0.12)),
+      url("../backgrounds/liquid-glass-mobile.png") center / cover fixed;
+  }
+
   .topbar,
   .top-actions,
   .filters,

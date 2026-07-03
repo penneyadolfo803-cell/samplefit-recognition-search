@@ -191,6 +191,94 @@ function seedSamples(): Sample[] {
   const now = new Date().toISOString();
   return [
     {
+      id: "seed-ceshi001",
+      sku: "ceshi001",
+      styleNo: "FXY24AW049",
+      name: "橄榄绿灯芯绒拼领衬衫夹克",
+      englishName: "Olive Corduroy-Trim Shirt Jacket",
+      category: "衬衫夹克",
+      season: "2024 秋冬",
+      gender: "女装",
+      color: "橄榄绿/浅卡其绿",
+      size: "84",
+      fabric: "仿麂皮桃皮绒复合面料",
+      composition: "棉 55%, 聚酯 40%, 氨纶 5%",
+      craft: "灯芯绒拼领, 暗门襟, 前中纽扣, 贴袋, 绗线袋面, 袖口翻边",
+      styleTags: ["衬衫夹克", "灯芯绒拼接", "贴袋", "宽松", "户外休闲", "2024AW"],
+      sampleKind: "physical",
+      status: "borrowed",
+      location: "汉商巴恩风样衣间",
+      rack: "HS-09-AW",
+      supplier: "信兴样衣组",
+      retailPrice: "699",
+      imageUrl: "./sample-images/ceshi001-front-dark.jpg",
+      enhancedImageUrl: "./sample-images/ceshi001-search.jpg",
+      threeDUrl: "",
+      bomItems: [
+        {
+          id: "bom-cs-1",
+          materialName: "仿麂皮桃皮绒",
+          usage: "大身",
+          color: "浅卡其绿",
+          supplier: "信兴面料仓"
+        },
+        {
+          id: "bom-cs-2",
+          materialName: "灯芯绒",
+          usage: "领子/袖口/袋口",
+          color: "橄榄棕",
+          supplier: "信兴面料仓"
+        },
+        {
+          id: "bom-cs-3",
+          materialName: "树脂纽扣",
+          usage: "前中门襟",
+          color: "深咖",
+          supplier: "辅料仓"
+        }
+      ],
+      designFiles: [
+        {
+          id: "file-cs-1",
+          name: "正面样衣图",
+          type: "JPG",
+          url: "./sample-images/ceshi001-front-dark.jpg"
+        },
+        {
+          id: "file-cs-2",
+          name: "背面样衣图",
+          type: "JPG",
+          url: "./sample-images/ceshi001-back-dark.jpg"
+        },
+        {
+          id: "file-cs-3",
+          name: "检索测试图",
+          type: "JPG",
+          url: "./sample-images/ceshi001-search.jpg"
+        }
+      ],
+      linkedStyles: ["款式库: FXY24AW049"],
+      linkedFabrics: ["面料库: 仿麂皮桃皮绒", "面料库: 灯芯绒拼接"],
+      linkedPatterns: ["版型库: 女装宽松短外套-84"],
+      visibilityScope: "业务一组,设计中心,样衣管理员",
+      favorite: true,
+      selected: true,
+      notes: "AI 字段补全测试款。图 3 用于以图搜图，应命中该款并生成一件报价。",
+      borrowHistory: [
+        {
+          id: "borrow-cs-1",
+          borrower: "业务一组",
+          team: "业务组",
+          purpose: "客户看样与一件报价",
+          borrowedAt: now,
+          dueAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+          note: "测试借出"
+        }
+      ],
+      createdAt: now,
+      updatedAt: now
+    },
+    {
       id: "seed-1",
       sku: "SY-2607-018",
       styleNo: "ST-AW26-JK018",
