@@ -1207,6 +1207,21 @@ textarea:focus {
   gap: 10px;
 }
 
+.front-source {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #123a5a;
+  background: rgb(224 241 255 / 0.72);
+  border: 1px solid rgb(66 137 206 / 0.2);
+  font-weight: 800;
+}
+
+.front-source.bulk {
+  color: #603915;
+  background: rgb(255 234 203 / 0.72);
+  border-color: rgb(188 120 46 / 0.22);
+}
+
 .front-menu-head {
   justify-content: space-between;
 }

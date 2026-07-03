@@ -63,6 +63,13 @@ import {
   searchDemoSamples
 } from "./lib/demo";
 import { businessTeams } from "./lib/bulk-fixtures";
+import {
+  filterFrontCatalogSamples,
+  getFrontCatalogCounts,
+  getFrontCatalogSamples,
+  getSampleSourceLabel,
+  type FrontCatalogSource
+} from "./lib/front-catalog";
 import { fileToOptimizedDataUrl, formatTags } from "./lib/image";
 import type {
   BomItem,
@@ -76,7 +83,6 @@ import type {
 
 type TabId = "library" | "entry" | "bulk" | "borrow" | "ai";
 type PortalMode = "admin" | "front";
-type FrontCatalogSource = "design" | "bulk";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
   id: string;
@@ -212,7 +218,7 @@ function App() {
   });
   const [frontUser, setFrontUser] = useState<FrontUser | null>(() => readStoredObject<FrontUser>(storageKeys.frontUser));
   const [frontQuery, setFrontQuery] = useState("");
-  const [frontCatalogSource, setFrontCatalogSource] = useState<FrontCatalogSource>("design");
+  const [frontCatalogSource, setFrontCatalogSource] = useState<FrontCatalogSource>("all");
   const [frontSelectedIds, setFrontSelectedIds] = useState<string[]>([]);
   const [frontFavoriteIds, setFrontFavoriteIds] = useState<string[]>(() => readStoredArray(storageKeys.frontFavorites));
   const [frontLikedIds, setFrontLikedIds] = useState<string[]>(() => readStoredArray(storageKeys.frontLikes));
@@ -229,9 +235,10 @@ function App() {
   const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
   const designSamples = useMemo(() => samples.filter((sample) => sample.source !== "bulk"), [samples]);
   const bulkSamples = useMemo(() => samples.filter((sample) => sample.source === "bulk"), [samples]);
+  const frontCatalogCounts = useMemo(() => getFrontCatalogCounts(samples), [samples]);
   const frontCatalogSamples = useMemo(
-    () => (frontCatalogSource === "bulk" ? bulkSamples : designSamples),
-    [bulkSamples, designSamples, frontCatalogSource]
+    () => getFrontCatalogSamples(samples, frontCatalogSource),
+    [samples, frontCatalogSource]
   );
   const frontSelectedSamples = useMemo(
     () => frontCatalogSamples.filter((sample) => frontSelectedIds.includes(sample.id)),
@@ -283,23 +290,8 @@ function App() {
   }, [bulkSamples, bulkQuery, bulkTeamFilter]);
 
   const frontSamples = useMemo(() => {
-    const term = frontQuery.trim().toLowerCase();
-    return frontCatalogSamples.filter((sample) => {
-      const haystack = [
-        sample.sku,
-        sample.styleNo,
-        sample.name,
-        sample.category,
-        sample.color,
-        sample.fabric,
-        sample.location,
-        sample.styleTags.join(" ")
-      ]
-        .join(" ")
-        .toLowerCase();
-      return !term || haystack.includes(term);
-    });
-  }, [frontCatalogSamples, frontQuery]);
+    return filterFrontCatalogSamples(samples, frontCatalogSource, frontQuery);
+  }, [samples, frontCatalogSource, frontQuery]);
 
   const metrics = useMemo(() => {
     return {
@@ -391,7 +383,7 @@ function App() {
       team: frontLogin.team.trim(),
       phone: frontLogin.phone.trim()
     });
-    setNotice("已进入业务前台，可查看设计部样衣并提交借出申请");
+    setNotice("已进入业务前台，可查看全部样衣并提交借出申请");
   }
 
   function toggleFrontSelect(sample: Sample) {
@@ -938,7 +930,7 @@ function App() {
             frontFavoriteIds={frontFavoriteIds}
             frontLikedIds={frontLikedIds}
             frontCatalogSource={frontCatalogSource}
-            frontCatalogCounts={{ design: designSamples.length, bulk: bulkSamples.length }}
+            frontCatalogCounts={frontCatalogCounts}
             frontQuery={frontQuery}
             frontRequestForm={frontRequestForm}
             frontSamples={frontSamples}
@@ -1799,6 +1791,7 @@ function FrontDeskPinterestView(props: {
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
   const catalogOptions: Array<{ id: FrontCatalogSource; label: string; icon: LucideIcon; count: number }> = [
+    { id: "all", label: "全部样衣", icon: Home, count: props.frontCatalogCounts.all },
     { id: "design", label: "设计样衣", icon: Shirt, count: props.frontCatalogCounts.design },
     { id: "bulk", label: "大货样品", icon: Boxes, count: props.frontCatalogCounts.bulk }
   ];
@@ -1843,7 +1836,8 @@ function FrontDeskPinterestView(props: {
     { id: "selected" as const, label: "已选", icon: CheckSquare, count: currentSelectedCount }
   ];
   const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
-  const catalogLabel = catalogOptions.find((item) => item.id === props.frontCatalogSource)?.label || "设计样衣";
+  const catalogLabel = catalogOptions.find((item) => item.id === props.frontCatalogSource)?.label || "全部样衣";
+  const boardTitle = props.frontCatalogSource === "all" && frontFilter === "all" ? "全部样衣" : `${filterLabel}${catalogLabel}`;
   const frontSampleIds = new Set(props.frontSamples.map((sample) => sample.id));
   const frontVisualResults = visualSearchHasRun
     ? props.similarResults.filter((result) => frontSampleIds.has(result.sample.id)).slice(0, 12)
@@ -1902,6 +1896,7 @@ function FrontDeskPinterestView(props: {
           </button>
           <span>{sample.sku} · {sample.category}</span>
           <div className="front-card-meta">
+            <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample)}</small>
             <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
             <small>{sample.color || sample.fabric}</small>
             <button
@@ -1923,7 +1918,7 @@ function FrontDeskPinterestView(props: {
       <section className="front-login-layout">
         <div className="panel front-hero-panel">
           <p className="eyebrow">业务前台</p>
-          <h2>业务员登录后可查看设计部在线样衣</h2>
+          <h2>业务员登录后可查看全部在线样衣</h2>
           <p>前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。</p>
           <div className="front-hero-stats">
             <span>在线样衣 {props.frontSamples.length}</span>
@@ -2078,7 +2073,7 @@ function FrontDeskPinterestView(props: {
             <div className="front-board-head">
               <div>
                 <p className="eyebrow">业务前台</p>
-                <h2>{filterLabel}{catalogLabel}</h2>
+                <h2>{boardTitle}</h2>
               </div>
               <div className="front-board-stats">
                 <span>{visibleSamples.length} 件</span>
@@ -2149,6 +2144,7 @@ function FrontDeskPinterestView(props: {
                 </div>
 
                 <div className="info-grid">
+                  <Info label="样衣类型" value={getSampleSourceLabel(detailSample)} />
                   <Info label="状态" value={statusText[detailSample.status]} />
                   <Info label="季节" value={detailSample.season} />
                   <Info label="尺码" value={detailSample.size} />
@@ -2241,7 +2237,7 @@ function FrontDeskPinterestView(props: {
               <div>
                 <p className="eyebrow">拍照搜款</p>
                 <h2>上传图片检索类似样衣</h2>
-                <span>支持现场拍照或从相册选择，结果仅展示设计部前台样衣。</span>
+                <span>支持现场拍照或从相册选择，结果仅展示当前前台可见样衣。</span>
               </div>
               <button className="icon-button" onClick={() => setVisualSearchOpen(false)} type="button">
                 <X size={17} />
@@ -2355,7 +2351,7 @@ function FrontDeskView(props: {
       <section className="front-login-layout">
         <div className="panel front-hero-panel">
           <p className="eyebrow">业务前台</p>
-          <h2>业务员登录后可查看设计部在线样衣</h2>
+          <h2>业务员登录后可查看全部在线样衣</h2>
           <p>前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。</p>
           <div className="front-hero-stats">
             <span>在线样衣 {props.frontSamples.length}</span>
@@ -2426,6 +2422,7 @@ function FrontDeskView(props: {
                 <strong>{sample.name}</strong>
                 <span>{sample.sku} · {sample.category}</span>
                 <div className="front-card-meta">
+                  <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample)}</small>
                   <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
                   <small>{sample.color || sample.fabric}</small>
                 </div>
