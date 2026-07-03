@@ -1,5 +1,6 @@
 import type { FieldCompletionResult, QuoteResult, Sample, SampleDraft, SimilarResult } from "./types";
 import { createBulkTestSamples } from "./bulk-fixtures";
+import { createDesignTestSamples } from "./design-fixtures";
 
 const now = new Date().toISOString();
 
@@ -178,6 +179,7 @@ export const demoSamples: Sample[] = [
     createdAt: now,
     updatedAt: now
   },
+  ...createDesignTestSamples(now),
   ...createBulkTestSamples(now)
 ];
 

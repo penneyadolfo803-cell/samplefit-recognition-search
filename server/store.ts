@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createBulkTestSamples } from "../src/lib/bulk-fixtures";
+import { createDesignTestSamples } from "../src/lib/design-fixtures";
 import type { BorrowRecord, BorrowRequest, Sample, SampleDraft } from "../src/lib/types";
 
 export interface Database {
@@ -34,31 +35,33 @@ export async function writeDb(db: Database) {
 
 function normalizeSamples(samples: Sample[]) {
   const now = new Date().toISOString();
+  const designFixtures = createDesignTestSamples(now);
   const bulkFixtures = createBulkTestSamples(now);
-  const bulkFixtureById = new Map(bulkFixtures.map((sample) => [sample.id, sample]));
+  const fixtureSamples = [...designFixtures, ...bulkFixtures];
+  const fixtureById = new Map(fixtureSamples.map((sample) => [sample.id, sample]));
   const existing = samples.map((sample) => {
     const normalized = {
       ...sample,
       source: sample.source || "design",
       ownerTeam: sample.ownerTeam || "设计部"
     };
-    const latestBulkFixture = bulkFixtureById.get(normalized.id);
-    if (!latestBulkFixture) {
+    const latestFixture = fixtureById.get(normalized.id);
+    if (!latestFixture) {
       return normalized;
     }
     return {
-      ...latestBulkFixture,
+      ...latestFixture,
       favorite: Boolean(normalized.favorite),
       selected: Boolean(normalized.selected),
-      status: normalized.status || latestBulkFixture.status,
+      status: normalized.status || latestFixture.status,
       borrowHistory: Array.isArray(normalized.borrowHistory) ? normalized.borrowHistory : [],
-      createdAt: normalized.createdAt || latestBulkFixture.createdAt,
+      createdAt: normalized.createdAt || latestFixture.createdAt,
       updatedAt: now
     };
   });
   const existingIds = new Set(existing.map((sample) => sample.id));
-  const missingBulk = bulkFixtures.filter((sample) => !existingIds.has(sample.id));
-  return [...existing, ...missingBulk];
+  const missingFixtures = fixtureSamples.filter((sample) => !existingIds.has(sample.id));
+  return [...existing, ...missingFixtures];
 }
 
 export function toSample(draft: SampleDraft): Sample {
@@ -520,6 +523,7 @@ function seedSamples(): Sample[] {
       createdAt: now,
       updatedAt: now
     },
+    ...createDesignTestSamples(now),
     ...createBulkTestSamples(now)
   ];
 }

@@ -18,11 +18,11 @@ function assert(condition: boolean, message: string) {
   }
 }
 
-assert(counts.all === 54, `expected all count 54, got ${counts.all}`);
-assert(counts.design === 4, `expected design count 4, got ${counts.design}`);
+assert(counts.all === 74, `expected all count 74, got ${counts.all}`);
+assert(counts.design === 24, `expected design count 24, got ${counts.design}`);
 assert(counts.bulk === 50, `expected bulk count 50, got ${counts.bulk}`);
-assert(allSamples.length === 54, `expected all samples 54, got ${allSamples.length}`);
-assert(designSamples.length === 4, `expected design samples 4, got ${designSamples.length}`);
+assert(allSamples.length === 74, `expected all samples 74, got ${allSamples.length}`);
+assert(designSamples.length === 24, `expected design samples 24, got ${designSamples.length}`);
 assert(bulkSamples.length === 50, `expected bulk samples 50, got ${bulkSamples.length}`);
 assert(searchedBulk.length === 1, `expected one search result, got ${searchedBulk.length}`);
 assert(getSampleSourceLabel(bulkSamples[0]) === "大货样品", "expected bulk source label");
