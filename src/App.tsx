@@ -8,8 +8,10 @@ import {
 } from "react";
 import {
   Archive,
+  AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Banknote,
   Bookmark,
   Boxes,
   Camera,
@@ -33,6 +35,7 @@ import {
   RotateCcw,
   Search,
   Send,
+  Settings2,
   Shirt,
   ShieldCheck,
   Sparkles,
@@ -48,6 +51,7 @@ import {
   completeFields,
   createBorrowRequest,
   createSample,
+  damageSample,
   enhanceImage,
   getBorrowRequests,
   getHealth,
@@ -74,6 +78,7 @@ import { createDemoWhiteBackgroundPreview, fileToOptimizedDataUrl, formatTags } 
 import type {
   BomItem,
   BorrowRequest,
+  DamageReason,
   DesignFile,
   HealthPayload,
   Sample,
@@ -99,6 +104,15 @@ type FeeBill = {
   createdAt: string;
   status: string;
 };
+type BillingRule = {
+  baseBorrowFee: number;
+  borrowRate: number;
+  minBorrowFee: number;
+  overdueDailyFee: number;
+  lostRate: number;
+  damageRate: number;
+  retiredRate: number;
+};
 
 const appName = "舜天信兴样衣管理系统";
 const fixedAiCreditsRemaining = 1200;
@@ -107,7 +121,8 @@ const storageKeys = {
   frontFavorites: "samplefit.front.favorites",
   frontLikes: "samplefit.front.likes",
   pptRecords: "samplefit.front.pptRecords",
-  feeBills: "samplefit.front.feeBills"
+  feeBills: "samplefit.front.feeBills",
+  billingRule: "samplefit.billing.rule"
 };
 
 const emptyDraft: SampleDraft = {
@@ -159,6 +174,27 @@ const statusText = {
   maintenance: "维护"
 };
 
+const sampleStatusText: Record<Sample["status"], string> = {
+  ...statusText,
+  damaged: "报损"
+};
+
+const damageReasonText: Record<DamageReason, string> = {
+  lost: "丢失",
+  damaged: "损坏",
+  retired: "年久自然淘汰"
+};
+
+const defaultBillingRule: BillingRule = {
+  baseBorrowFee: 20,
+  borrowRate: 0.03,
+  minBorrowFee: 20,
+  overdueDailyFee: 10,
+  lostRate: 1,
+  damageRate: 0.6,
+  retiredRate: 0
+};
+
 const borrowRequestStatusText = {
   pending: "待设计部确认",
   approved: "已同意",
@@ -205,6 +241,18 @@ function App() {
     purpose: "选样",
     dueAt: ""
   });
+  const [damageForm, setDamageForm] = useState({
+    reporter: "",
+    team: "",
+    reason: "damaged" as DamageReason,
+    estimatedLoss: "",
+    note: ""
+  });
+  const [damageQuery, setDamageQuery] = useState("");
+  const [billingRule, setBillingRule] = useState<BillingRule>(() => ({
+    ...defaultBillingRule,
+    ...(readStoredObject<Partial<BillingRule>>(storageKeys.billingRule) || {})
+  }));
   const [searchImage, setSearchImage] = useState("");
   const [searchText, setSearchText] = useState("");
   const [similarityThreshold, setSimilarityThreshold] = useState(0.12);
@@ -244,6 +292,10 @@ function App() {
   const frontSelectedSamples = useMemo(
     () => frontCatalogSamples.filter((sample) => frontSelectedIds.includes(sample.id)),
     [frontCatalogSamples, frontSelectedIds]
+  );
+  const damageCandidates = useMemo(
+    () => getDamageCandidates(samples, damageQuery),
+    [samples, damageQuery]
   );
 
   const filteredSamples = useMemo(() => {
@@ -300,6 +352,7 @@ function App() {
       bulk: bulkSamples.length,
       inStock: designSamples.filter((sample) => sample.status === "in_stock").length,
       borrowed: designSamples.filter((sample) => sample.status === "borrowed").length,
+      damaged: designSamples.filter((sample) => sample.status === "damaged").length,
       selected: designSamples.filter((sample) => sample.selected).length,
       requests: borrowRequests.filter((request) => request.status === "pending").length
     };
@@ -328,6 +381,10 @@ function App() {
   useEffect(() => {
     writeStoredObject(storageKeys.feeBills, feeBills);
   }, [feeBills]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.billingRule, billingRule);
+  }, [billingRule]);
 
   async function reload() {
     setBusy("load");
@@ -414,6 +471,10 @@ function App() {
   }
 
   function toggleFrontSelect(sample: Sample) {
+    if (sample.status === "damaged") {
+      setNotice("报损样衣不可加入借样或推款");
+      return;
+    }
     setFrontSelectedIds((current) =>
       current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
     );
@@ -438,6 +499,11 @@ function App() {
       return;
     }
     const targets = Array.isArray(target) ? target : [target];
+    const unavailable = targets.filter((sample) => sample.status === "damaged");
+    if (unavailable.length) {
+      setNotice(`报损样衣不可借样：${unavailable.map((sample) => sample.sku).join("、")}`);
+      return;
+    }
     if (!targets.length) {
       setNotice("请先选择样衣");
       return;
@@ -461,6 +527,7 @@ function App() {
           createdAt: new Date().toISOString()
         }));
         setBorrowRequests((current) => [...requests, ...current]);
+        setFeeBills((current) => [...createBorrowFeeBills(targets, frontUser, billingRule), ...current]);
         setNotice(`客户演示版已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
         return;
       }
@@ -479,6 +546,7 @@ function App() {
         )
       );
       setBorrowRequests((current) => [...requests, ...current]);
+      setFeeBills((current) => [...createBorrowFeeBills(targets, frontUser, billingRule), ...current]);
       setNotice(`已提交 ${requests.length} 件样衣借出申请，等待设计部确认`);
     } catch (error) {
       setNotice(readError(error));
@@ -545,9 +613,10 @@ function App() {
   }
 
   function editSample(sample: Sample) {
-    const { embedding, borrowHistory, createdAt, updatedAt, ...editable } = sample;
+    const { embedding, borrowHistory, damageHistory, createdAt, updatedAt, ...editable } = sample;
     void embedding;
     void borrowHistory;
+    void damageHistory;
     void createdAt;
     void updatedAt;
     setDraft({ ...editable, id: sample.id });
@@ -555,9 +624,10 @@ function App() {
   }
 
   function editBulkSample(sample: Sample) {
-    const { embedding, borrowHistory, createdAt, updatedAt, ...editable } = sample;
+    const { embedding, borrowHistory, damageHistory, createdAt, updatedAt, ...editable } = sample;
     void embedding;
     void borrowHistory;
+    void damageHistory;
     void createdAt;
     void updatedAt;
     setBulkDraft({ ...editable, source: "bulk" });
@@ -565,6 +635,10 @@ function App() {
   }
 
   async function saveDraft() {
+    if (!draft.retailPrice.trim()) {
+      setNotice("请填写样衣吊牌价，借样计费需要价格依据");
+      return;
+    }
     setBusy("save");
     setNotice("");
     try {
@@ -593,6 +667,10 @@ function App() {
   }
 
   async function saveBulkDraft() {
+    if (!bulkDraft.retailPrice.trim()) {
+      setNotice("请填写大货样品价格，借样计费需要价格依据");
+      return;
+    }
     setBusy("bulk-save");
     setNotice("");
     const payload: SampleDraft = {
@@ -731,6 +809,10 @@ function App() {
     if (!selected) {
       return;
     }
+    if (selected.status === "damaged") {
+      setNotice("报损样衣不可再借出");
+      return;
+    }
     setBusy("borrow");
     setNotice("");
     try {
@@ -793,6 +875,60 @@ function App() {
       await reload();
       setSelectedId(updated.id);
       setNotice("样衣已归还入库");
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function reportDamageSelected() {
+    if (!selected) {
+      return;
+    }
+    const reporter = damageForm.reporter.trim() || "样衣管理员";
+    const team = damageForm.team.trim() || "设计部";
+    const manualEstimatedLoss = damageForm.estimatedLoss.trim();
+    const estimatedLoss =
+      manualEstimatedLoss ? parseMoneyValue(manualEstimatedLoss) : calculateDamageFee(selected, damageForm.reason, billingRule);
+
+    setBusy("damage");
+    setNotice("");
+    try {
+      if (demoMode) {
+        const record = {
+          id: uid(),
+          reporter,
+          team,
+          reason: damageForm.reason,
+          estimatedLoss,
+          note: damageForm.note,
+          reportedAt: new Date().toISOString()
+        };
+        const updated: Sample = {
+          ...selected,
+          status: "damaged",
+          damageHistory: [record, ...(selected.damageHistory || [])],
+          updatedAt: new Date().toISOString()
+        };
+        setSamples((current) => current.map((sample) => (sample.id === selected.id ? updated : sample)));
+        setFrontSelectedIds((current) => current.filter((id) => id !== selected.id));
+        setNotice(`已登记报损：${selected.sku} · ${damageReasonText[damageForm.reason]}`);
+        setDamageForm({ reporter: "", team: "", reason: "damaged", estimatedLoss: "", note: "" });
+        return;
+      }
+      const updated = await damageSample(selected.id, {
+        reporter,
+        team,
+        reason: damageForm.reason,
+        estimatedLoss,
+        note: damageForm.note
+      });
+      await reload();
+      setSelectedId(updated.id);
+      setFrontSelectedIds((current) => current.filter((id) => id !== updated.id));
+      setNotice(`已登记报损：${updated.sku} · ${damageReasonText[damageForm.reason]}`);
+      setDamageForm({ reporter: "", team: "", reason: "damaged", estimatedLoss: "", note: "" });
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -950,6 +1086,7 @@ function App() {
             <Metric icon={Database} label="大货样品" value={metrics.bulk} />
             <Metric icon={BadgeCheck} label="可借在库" value={metrics.inStock} />
             <Metric icon={Archive} label="当前借出" value={metrics.borrowed} />
+            <Metric icon={AlertTriangle} label="报损样衣" value={metrics.damaged} />
             <Metric icon={ClipboardList} label="待处理申请" value={metrics.requests} />
           </section>
         )}
@@ -978,6 +1115,7 @@ function App() {
             selected={selected}
             similarResults={similarResults}
             aiCreditsRemaining={aiCreditsRemaining}
+            billingRule={billingRule}
             generateFrontPpt={generateFrontPpt}
             openProfile={() => setShowProfile(true)}
             reload={reload}
@@ -1046,11 +1184,20 @@ function App() {
 
             {tab === "borrow" && selected && (
               <BorrowView
+                billingRule={billingRule}
                 borrowForm={borrowForm}
                 busy={busy}
+                damageCandidates={damageCandidates}
+                damageForm={damageForm}
+                damageQuery={damageQuery}
                 selected={selected}
+                setBillingRule={setBillingRule}
                 setBorrowForm={setBorrowForm}
+                setDamageForm={setDamageForm}
+                setDamageQuery={setDamageQuery}
+                setSelectedId={setSelectedId}
                 borrowSelected={borrowSelected}
+                reportDamageSelected={reportDamageSelected}
                 returnSelected={returnSelected}
               />
             )}
@@ -1148,6 +1295,7 @@ function LibraryView(props: {
             <option value="in_stock">在库</option>
             <option value="borrowed">借出</option>
             <option value="maintenance">维护</option>
+            <option value="damaged">报损</option>
           </select>
           <select onChange={(event) => props.setKindFilter(event.target.value)} value={props.kindFilter}>
             <option value="all">全部类型</option>
@@ -1168,7 +1316,7 @@ function LibraryView(props: {
               <div className="sample-card-body">
                 <div className="card-title">
                   <strong>{sample.name}</strong>
-                  <span className={`status ${sample.status}`}>{statusText[sample.status]}</span>
+                  <span className={`status ${sample.status}`}>{sampleStatusText[sample.status]}</span>
                 </div>
                 <small>
                   {sample.sku} · {sample.styleNo}
@@ -1608,13 +1756,30 @@ function BulkGoodsView(props: {
 }
 
 function BorrowView(props: {
+  billingRule: BillingRule;
   borrowForm: { borrower: string; team: string; purpose: string; dueAt: string };
   busy: string;
+  damageCandidates: Sample[];
+  damageForm: { reporter: string; team: string; reason: DamageReason; estimatedLoss: string; note: string };
+  damageQuery: string;
   selected: Sample;
+  setBillingRule: Dispatch<SetStateAction<BillingRule>>;
   setBorrowForm: Dispatch<SetStateAction<{ borrower: string; team: string; purpose: string; dueAt: string }>>;
+  setDamageForm: Dispatch<SetStateAction<{ reporter: string; team: string; reason: DamageReason; estimatedLoss: string; note: string }>>;
+  setDamageQuery: (value: string) => void;
+  setSelectedId: (value: string) => void;
   borrowSelected: () => Promise<void>;
+  reportDamageSelected: () => Promise<void>;
   returnSelected: () => Promise<void>;
 }) {
+  const updateBillingRule = (field: keyof BillingRule, value: string, percentage = false) => {
+    const numericValue = Number(value);
+    props.setBillingRule((current) => ({
+      ...current,
+      [field]: Number.isFinite(numericValue) ? (percentage ? numericValue / 100 : numericValue) : 0
+    }));
+  };
+
   return (
     <section className="borrow-layout">
       <div className="panel selected-panel">
@@ -1623,7 +1788,11 @@ function BorrowView(props: {
           <p className="eyebrow">{props.selected.sku}</p>
           <h2>{props.selected.name}</h2>
           <p>{props.selected.location} · {props.selected.rack}</p>
-          <span className={`status ${props.selected.status}`}>{statusText[props.selected.status]}</span>
+          <span className={`status ${props.selected.status}`}>{sampleStatusText[props.selected.status]}</span>
+          <div className="money-stack">
+            <small>吊牌价 {formatRetailPrice(props.selected)}</small>
+            <strong>借样 {formatMoney(calculateBorrowFee(props.selected, props.billingRule))}/次</strong>
+          </div>
         </div>
       </div>
 
@@ -1664,6 +1833,63 @@ function BorrowView(props: {
         </div>
       </div>
 
+      <div className="panel damage-form">
+        <h2>样衣报损</h2>
+        <p>用于出库报损：丢失、损坏、年久自然淘汰。</p>
+        <div className="form-grid two">
+          <Field
+            label="报损人"
+            value={props.damageForm.reporter}
+            onChange={(value) => props.setDamageForm((current) => ({ ...current, reporter: value }))}
+          />
+          <Field
+            label="部门"
+            value={props.damageForm.team}
+            onChange={(value) => props.setDamageForm((current) => ({ ...current, team: value }))}
+          />
+        </div>
+        <label>
+          报损原因
+          <select
+            onChange={(event) =>
+              props.setDamageForm((current) => ({ ...current, reason: event.target.value as DamageReason }))
+            }
+            value={props.damageForm.reason}
+          >
+            {Object.entries(damageReasonText).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Field
+          label="估损金额"
+          value={props.damageForm.estimatedLoss}
+          onChange={(value) => props.setDamageForm((current) => ({ ...current, estimatedLoss: value }))}
+        />
+        <label>
+          报损说明
+          <textarea
+            onChange={(event) => props.setDamageForm((current) => ({ ...current, note: event.target.value }))}
+            value={props.damageForm.note}
+          />
+        </label>
+        <div className="fee-preview">
+          <Banknote size={16} />
+          <span>建议估损 {formatMoney(calculateDamageFee(props.selected, props.damageForm.reason, props.billingRule))}</span>
+        </div>
+        <button
+          className="danger"
+          disabled={props.busy === "damage" || props.selected.status === "damaged"}
+          onClick={() => void props.reportDamageSelected()}
+          type="button"
+        >
+          {props.busy === "damage" ? <Loader2 className="spin" size={16} /> : <AlertTriangle size={16} />}
+          确认报损
+        </button>
+      </div>
+
       <div className="panel history-panel">
         <h2>借还记录</h2>
         <div className="history-list">
@@ -1674,6 +1900,88 @@ function BorrowView(props: {
               <small>{formatDate(record.borrowedAt)} 借出</small>
               <small>{record.returnedAt ? `${formatDate(record.returnedAt)} 归还` : "未归还"}</small>
             </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel billing-rule-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>收费规则</h2>
+            <p>业务员前台可见借样计价，后台可随时调整。</p>
+          </div>
+          <Settings2 size={22} />
+        </div>
+        <div className="form-grid two">
+          <Field
+            label="借样基础费"
+            value={String(props.billingRule.baseBorrowFee)}
+            onChange={(value) => updateBillingRule("baseBorrowFee", value)}
+          />
+          <Field
+            label="吊牌价比例%"
+            value={String(Math.round(props.billingRule.borrowRate * 100))}
+            onChange={(value) => updateBillingRule("borrowRate", value, true)}
+          />
+          <Field
+            label="最低借样费"
+            value={String(props.billingRule.minBorrowFee)}
+            onChange={(value) => updateBillingRule("minBorrowFee", value)}
+          />
+          <Field
+            label="逾期每日费"
+            value={String(props.billingRule.overdueDailyFee)}
+            onChange={(value) => updateBillingRule("overdueDailyFee", value)}
+          />
+          <Field
+            label="丢失赔付%"
+            value={String(Math.round(props.billingRule.lostRate * 100))}
+            onChange={(value) => updateBillingRule("lostRate", value, true)}
+          />
+          <Field
+            label="损坏赔付%"
+            value={String(Math.round(props.billingRule.damageRate * 100))}
+            onChange={(value) => updateBillingRule("damageRate", value, true)}
+          />
+          <Field
+            label="淘汰赔付%"
+            value={String(Math.round(props.billingRule.retiredRate * 100))}
+            onChange={(value) => updateBillingRule("retiredRate", value, true)}
+          />
+        </div>
+      </div>
+
+      <div className="panel damage-candidates">
+        <div className="form-toolbar">
+          <div>
+            <h2>老样衣报损推荐</h2>
+            <p>默认优先推荐季节较早、维护中或借出较久的样衣，也可按款号搜索。</p>
+          </div>
+          <AlertTriangle size={22} />
+        </div>
+        <label className="search-box">
+          <Search size={16} />
+          <input
+            onChange={(event) => props.setDamageQuery(event.target.value)}
+            placeholder="按款号、名称、品类搜索"
+            value={props.damageQuery}
+          />
+        </label>
+        <div className="damage-candidate-list">
+          {props.damageCandidates.map((sample) => (
+            <button
+              className={sample.id === props.selected.id ? "active" : ""}
+              key={sample.id}
+              onClick={() => props.setSelectedId(sample.id)}
+              type="button"
+            >
+              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <div>
+                <strong>{sample.sku}</strong>
+                <span>{sample.name} · {sample.season || sample.category}</span>
+                <small>{sampleStatusText[sample.status]} · {formatRetailPrice(sample)}</small>
+              </div>
+            </button>
           ))}
         </div>
       </div>
@@ -1804,6 +2112,7 @@ function FrontDeskPinterestView(props: {
   searchImage: string;
   selected?: Sample;
   similarResults: SimilarResult[];
+  billingRule: BillingRule;
   generateFrontPpt: () => Promise<void>;
   openProfile: () => void;
   reload: () => Promise<void>;
@@ -1933,7 +2242,8 @@ function FrontDeskPinterestView(props: {
           <span>{sample.sku} · {sample.category}</span>
           <div className="front-card-meta">
             <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample)}</small>
-            <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+            <small className={`status ${sample.status}`}>{sampleStatusText[sample.status]}</small>
+            <small>{formatMoney(calculateBorrowFee(sample, props.billingRule))}/次</small>
             <small>{sample.color || sample.fabric}</small>
             <button
               className={liked ? "front-action active" : "front-action"}
@@ -2181,7 +2491,9 @@ function FrontDeskPinterestView(props: {
 
                 <div className="info-grid">
                   <Info label="样衣类型" value={getSampleSourceLabel(detailSample)} />
-                  <Info label="状态" value={statusText[detailSample.status]} />
+                  <Info label="状态" value={sampleStatusText[detailSample.status]} />
+                  <Info label="吊牌价" value={formatRetailPrice(detailSample)} />
+                  <Info label="借样计费" value={`${formatMoney(calculateBorrowFee(detailSample, props.billingRule))}/次`} />
                   <Info label="季节" value={detailSample.season} />
                   <Info label="尺码" value={detailSample.size} />
                   <Info label="库位" value={`${detailSample.location} ${detailSample.rack}`} />
@@ -2459,7 +2771,7 @@ function FrontDeskView(props: {
                 <span>{sample.sku} · {sample.category}</span>
                 <div className="front-card-meta">
                   <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample)}</small>
-                  <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+                  <small className={`status ${sample.status}`}>{sampleStatusText[sample.status]}</small>
                   <small>{sample.color || sample.fabric}</small>
                 </div>
                 <div className="front-card-actions">
@@ -2504,7 +2816,7 @@ function FrontDeskView(props: {
                 <h2>{props.selected.name}</h2>
                 <p>{props.selected.color} · {props.selected.fabric}</p>
               </div>
-              <span className={`status ${props.selected.status}`}>{statusText[props.selected.status]}</span>
+              <span className={`status ${props.selected.status}`}>{sampleStatusText[props.selected.status]}</span>
             </div>
             <div className="info-grid">
               <Info label="位置" value={`${props.selected.location} ${props.selected.rack}`} />
@@ -2829,6 +3141,78 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "CNY"
   }).format(value);
+}
+
+function parseMoneyValue(value: string | number | undefined) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  const normalized = String(value || "").replace(/,/g, "");
+  const match = normalized.match(/\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function formatRetailPrice(sample: Sample) {
+  const price = parseMoneyValue(sample.retailPrice);
+  return price ? formatMoney(price) : "未标价";
+}
+
+function calculateBorrowFee(sample: Sample, rule: BillingRule) {
+  const price = parseMoneyValue(sample.retailPrice);
+  const fee = rule.baseBorrowFee + price * rule.borrowRate;
+  return Math.round(Math.max(rule.minBorrowFee, fee));
+}
+
+function calculateDamageFee(sample: Sample, reason: DamageReason, rule: BillingRule) {
+  const price = parseMoneyValue(sample.retailPrice);
+  const rate = reason === "lost" ? rule.lostRate : reason === "damaged" ? rule.damageRate : rule.retiredRate;
+  return Math.round(price * rate);
+}
+
+function createBorrowFeeBills(samples: Sample[], user: FrontUser, rule: BillingRule): FeeBill[] {
+  return samples.map((sample) => ({
+    id: uid(),
+    title: `借样费用 · ${sample.sku} · ${user.team}`,
+    amount: calculateBorrowFee(sample, rule),
+    points: 0,
+    createdAt: new Date().toISOString(),
+    status: "待结算"
+  }));
+}
+
+function getDamageCandidates(samples: Sample[], query: string) {
+  const term = query.trim().toLowerCase();
+  const candidates = samples.filter((sample) => sample.status !== "damaged");
+  if (term) {
+    return candidates
+      .filter((sample) =>
+        [
+          sample.sku,
+          sample.styleNo,
+          sample.name,
+          sample.englishName,
+          sample.category,
+          sample.season,
+          sample.ownerTeam
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(term)
+      )
+      .slice(0, 12);
+  }
+
+  return [...candidates]
+    .sort((a, b) => damageCandidateScore(b) - damageCandidateScore(a))
+    .slice(0, 12);
+}
+
+function damageCandidateScore(sample: Sample) {
+  const year = Number(String(sample.season).match(/20\d{2}/)?.[0] || 0);
+  const ageScore = year ? Math.max(0, new Date().getFullYear() - year) * 12 : 18;
+  const statusScore = sample.status === "maintenance" ? 36 : sample.status === "borrowed" ? 18 : 0;
+  const historyScore = sample.borrowHistory.length * 3;
+  return ageScore + statusScore + historyScore;
 }
 
 function sampleLikeCount(sample: Sample, likedIds: string[]) {

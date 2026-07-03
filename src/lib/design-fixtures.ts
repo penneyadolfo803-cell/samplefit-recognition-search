@@ -87,6 +87,7 @@ export function createDesignTestSamples(now: string): Sample[] {
               }
             ]
           : [],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     };

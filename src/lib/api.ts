@@ -1,6 +1,7 @@
 import type {
   BorrowRecord,
   BorrowRequest,
+  DamageReason,
   FieldCompletionResult,
   HealthPayload,
   QuoteRequest,
@@ -59,6 +60,16 @@ export function returnSample(id: string, note?: string) {
   return request<Sample>(`/api/samples/${id}/return`, {
     method: "POST",
     body: JSON.stringify({ note })
+  });
+}
+
+export function damageSample(
+  id: string,
+  payload: { reporter: string; team: string; reason: DamageReason; estimatedLoss: number; note?: string }
+) {
+  return request<Sample>(`/api/samples/${id}/damage`, {
+    method: "POST",
+    body: JSON.stringify(payload)
   });
 }
 

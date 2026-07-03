@@ -16,6 +16,7 @@ import {
 import {
   createBorrowRecord,
   createBorrowRequest,
+  createDamageRecord,
   lexicalScore,
   mergeSample,
   readDb,
@@ -134,6 +135,39 @@ app.post("/api/samples/:id/return", async (request, response, next) => {
       active.note = request.body?.note || active.note;
     }
     sample.status = "in_stock";
+    sample.updatedAt = new Date().toISOString();
+    await writeDb(db);
+    response.json(publicSample(sample));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/samples/:id/damage", async (request, response, next) => {
+  try {
+    const db = await readDb();
+    const sample = db.samples.find((item) => item.id === request.params.id);
+
+    if (!sample) {
+      response.status(404).send("样衣不存在");
+      return;
+    }
+
+    const record = createDamageRecord({
+      reporter: cleanText(request.body.reporter),
+      team: cleanText(request.body.team),
+      reason: request.body.reason,
+      estimatedLoss: Number(request.body.estimatedLoss || 0),
+      note: cleanText(request.body.note)
+    });
+
+    if (!record.reporter || !record.team) {
+      response.status(400).send("请填写报损人和部门");
+      return;
+    }
+
+    sample.status = "damaged";
+    sample.damageHistory = [record, ...(Array.isArray(sample.damageHistory) ? sample.damageHistory : [])];
     sample.updatedAt = new Date().toISOString();
     await writeDb(db);
     response.json(publicSample(sample));

@@ -320,7 +320,7 @@ button b {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 18px;
 }
 
@@ -383,6 +383,9 @@ button b {
 .detail-panel,
 .form-panel,
 .borrow-form,
+.damage-form,
+.billing-rule-panel,
+.damage-candidates,
 .history-panel,
 .ai-search-panel,
 .results-panel,
@@ -526,6 +529,11 @@ textarea:focus {
 .status.maintenance {
   background: #e5ebfb;
   color: #274fba;
+}
+
+.status.damaged {
+  background: #ffe1df;
+  color: #8a1c1c;
 }
 
 .tag-row,
@@ -783,12 +791,99 @@ textarea:focus {
   color: var(--muted);
 }
 
+.money-stack {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.money-stack small,
+.damage-form p,
+.billing-rule-panel p,
+.damage-candidates p {
+  color: var(--muted);
+}
+
+.money-stack strong {
+  color: #11364e;
+}
+
 .borrow-form,
+.damage-form,
+.billing-rule-panel,
+.damage-candidates,
 .history-panel,
 .ai-search-panel,
 .results-panel {
   display: grid;
   gap: 12px;
+}
+
+.fee-preview {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 0.54);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.42);
+  color: #13334b;
+  padding: 9px 11px;
+  font-weight: 800;
+}
+
+button.danger {
+  background: linear-gradient(145deg, rgb(196 45 45 / 0.88), rgb(119 30 30 / 0.9));
+  color: #fff;
+}
+
+button.danger:disabled {
+  opacity: 0.5;
+}
+
+.damage-candidate-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.damage-candidate-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  border: var(--glass-border);
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.52), rgb(255 255 255 / 0.2));
+  color: var(--ink);
+  padding: 8px;
+}
+
+.damage-candidate-list button.active,
+.damage-candidate-list button:hover {
+  border-color: rgb(92 153 214 / 0.5);
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.3));
+}
+
+.damage-candidate-list img {
+  width: 58px;
+  height: 72px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.damage-candidate-list div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.damage-candidate-list span,
+.damage-candidate-list small {
+  color: var(--muted);
 }
 
 .quote-controls {
@@ -1773,6 +1868,10 @@ textarea:focus {
   .main {
     padding: 18px;
     padding-bottom: 92px;
+  }
+
+  .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .library-grid,

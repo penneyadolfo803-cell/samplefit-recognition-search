@@ -1,6 +1,7 @@
-export type SampleStatus = "in_stock" | "borrowed" | "maintenance";
+export type SampleStatus = "in_stock" | "borrowed" | "maintenance" | "damaged";
 export type SampleKind = "physical" | "digital3d";
 export type SampleSource = "design" | "bulk";
+export type DamageReason = "lost" | "damaged" | "retired";
 
 export interface BomItem {
   id: string;
@@ -45,6 +46,16 @@ export interface BorrowRequest {
   createdAt: string;
 }
 
+export interface DamageRecord {
+  id: string;
+  reporter: string;
+  team: string;
+  reason: DamageReason;
+  estimatedLoss: number;
+  reportedAt: string;
+  note?: string;
+}
+
 export interface Sample {
   id: string;
   sku: string;
@@ -82,13 +93,14 @@ export interface Sample {
   notes: string;
   embedding?: number[];
   borrowHistory: BorrowRecord[];
+  damageHistory: DamageRecord[];
   createdAt: string;
   updatedAt: string;
 }
 
 export type SampleDraft = Omit<
   Sample,
-  "id" | "status" | "embedding" | "borrowHistory" | "createdAt" | "updatedAt"
+  "id" | "status" | "embedding" | "borrowHistory" | "damageHistory" | "createdAt" | "updatedAt"
 > & {
   id?: string;
   status?: SampleStatus;

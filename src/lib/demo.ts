@@ -60,6 +60,7 @@ const allDemoSamples: Sample[] = [
         note: "测试借出"
       }
     ],
+    damageHistory: [],
     createdAt: now,
     updatedAt: now
   },
@@ -99,6 +100,7 @@ const allDemoSamples: Sample[] = [
     selected: false,
     notes: "袖口可调节，需复核辅料色号。",
     borrowHistory: [],
+    damageHistory: [],
     createdAt: now,
     updatedAt: now
   },
@@ -138,6 +140,7 @@ const allDemoSamples: Sample[] = [
     selected: true,
     notes: "腰头样版已调整，第二版待回。",
     borrowHistory: [],
+    damageHistory: [],
     createdAt: now,
     updatedAt: now
   },
@@ -177,6 +180,7 @@ const allDemoSamples: Sample[] = [
     selected: false,
     notes: "门襟略松，返修后再入拍摄池。",
     borrowHistory: [],
+    damageHistory: [],
     createdAt: now,
     updatedAt: now
   },
@@ -204,6 +208,7 @@ export function draftToDemoSample(draft: SampleDraft): Sample {
     bomItems: draft.bomItems || [],
     designFiles: draft.designFiles || [],
     borrowHistory: [],
+    damageHistory: [],
     createdAt: date,
     updatedAt: date
   };

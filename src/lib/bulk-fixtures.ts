@@ -108,6 +108,7 @@ export function createBulkTestSamples(now: string): Sample[] {
       selected: false,
       notes: "批量生成的大货测试款，后续可删除。",
       borrowHistory: [],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     };

@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createBulkTestSamples } from "../src/lib/bulk-fixtures";
 import { createDesignTestSamples } from "../src/lib/design-fixtures";
-import type { BorrowRecord, BorrowRequest, Sample, SampleDraft } from "../src/lib/types";
+import type { BorrowRecord, BorrowRequest, DamageRecord, Sample, SampleDraft } from "../src/lib/types";
 
 export interface Database {
   samples: Sample[];
@@ -55,6 +55,7 @@ function normalizeSamples(samples: Sample[]) {
       selected: Boolean(normalized.selected),
       status: normalized.status || latestFixture.status,
       borrowHistory: Array.isArray(normalized.borrowHistory) ? normalized.borrowHistory : [],
+      damageHistory: Array.isArray((normalized as Sample).damageHistory) ? (normalized as Sample).damageHistory : [],
       createdAt: normalized.createdAt || latestFixture.createdAt,
       updatedAt: now
     };
@@ -102,6 +103,7 @@ export function toSample(draft: SampleDraft): Sample {
     selected: Boolean(draft.selected),
     notes: draft.notes || "",
     borrowHistory: [],
+    damageHistory: [],
     createdAt: now,
     updatedAt: now
   };
@@ -132,6 +134,20 @@ export function createBorrowRecord(
     dueAt: payload.dueAt,
     note: payload.note,
     borrowedAt: new Date().toISOString()
+  };
+}
+
+export function createDamageRecord(
+  payload: Omit<DamageRecord, "id" | "reportedAt">
+): DamageRecord {
+  return {
+    id: crypto.randomUUID(),
+    reporter: payload.reporter,
+    team: payload.team,
+    reason: payload.reason,
+    estimatedLoss: Number(payload.estimatedLoss || 0),
+    note: payload.note,
+    reportedAt: new Date().toISOString()
   };
 }
 
@@ -339,6 +355,7 @@ function seedSamples(): Sample[] {
           note: "测试借出"
         }
       ],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     },
@@ -401,6 +418,7 @@ function seedSamples(): Sample[] {
       selected: false,
       notes: "袖口可调节，需复核辅料色号。",
       borrowHistory: [],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     },
@@ -465,6 +483,7 @@ function seedSamples(): Sample[] {
           dueAt: new Date(Date.now() + 86400000 * 4).toISOString()
         }
       ],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     },
@@ -520,6 +539,7 @@ function seedSamples(): Sample[] {
       selected: false,
       notes: "门襟略松，返修后再入拍摄池。",
       borrowHistory: [],
+      damageHistory: [],
       createdAt: now,
       updatedAt: now
     },
