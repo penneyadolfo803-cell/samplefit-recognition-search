@@ -8,19 +8,26 @@ import {
 } from "react";
 import {
   Archive,
+  ArrowLeft,
   BadgeCheck,
+  Bookmark,
   Boxes,
   Camera,
   Check,
+  CheckSquare,
   ClipboardList,
   Coins,
   Database,
+  Expand,
   FileText,
   Heart,
+  Home,
   ImageUp,
   Loader2,
   LogIn,
   PackagePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Presentation,
   ReceiptText,
   RotateCcw,
@@ -811,7 +818,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${portalMode === "front" ? "front-mode" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -868,50 +875,37 @@ function App() {
       </aside>
 
       <main className="main">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">{appName}</p>
-            <h1>{portalMode === "front" ? "业务前台借样入口" : titleFor(tab)}</h1>
-          </div>
-          <div className="top-actions">
-            <div className="credit-pill">
-              <Coins size={16} />
-              <span>AI 积分剩余</span>
-              <strong>{aiCreditsRemaining}</strong>
+        {portalMode === "admin" && (
+          <header className="topbar">
+            <div>
+              <p className="eyebrow">{appName}</p>
+              <h1>{titleFor(tab)}</h1>
             </div>
-            {portalMode === "front" && frontUser && (
-              <button
-                disabled={!frontSelectedSamples.length || busy === "ppt"}
-                onClick={() => void generateFrontPpt()}
-                type="button"
-              >
-                {busy === "ppt" ? <Loader2 className="spin" size={16} /> : <Presentation size={16} />}
-                生成推款 PPT
-                {frontSelectedSamples.length ? <b>{frontSelectedSamples.length}</b> : null}
+            <div className="top-actions">
+              <div className="credit-pill">
+                <Coins size={16} />
+                <span>AI 积分剩余</span>
+                <strong>{aiCreditsRemaining}</strong>
+              </div>
+              <button className="ghost" onClick={() => setShowProfile(true)} type="button">
+                <UserRound size={16} />
+                我的
               </button>
-            )}
-            <button className="ghost" onClick={() => setShowProfile(true)} type="button">
-              <UserRound size={16} />
-              我的
-            </button>
-            <button className="ghost" onClick={() => void reload()} type="button">
-              <RotateCcw size={16} />
-              刷新
-            </button>
-            {portalMode === "admin" && (
+              <button className="ghost" onClick={() => void reload()} type="button">
+                <RotateCcw size={16} />
+                刷新
+              </button>
               <button onClick={startCreate} type="button">
                 <PackagePlus size={16} />
                 新增样衣
               </button>
-            )}
-            {portalMode === "admin" && (
               <button className="ghost" onClick={() => startBulkCreate()} type="button">
                 <Boxes size={16} />
                 大货录入
               </button>
-            )}
-          </div>
-        </header>
+            </div>
+          </header>
+        )}
 
         {notice && <div className="notice">{notice}</div>}
 
@@ -931,7 +925,7 @@ function App() {
             加载中
           </div>
         ) : portalMode === "front" ? (
-          <FrontDeskView
+          <FrontDeskPinterestView
             busy={busy}
             frontLogin={frontLogin}
             frontFavoriteIds={frontFavoriteIds}
@@ -944,6 +938,11 @@ function App() {
             frontUser={frontUser}
             requests={borrowRequests}
             selected={selected}
+            aiCreditsRemaining={aiCreditsRemaining}
+            generateFrontPpt={generateFrontPpt}
+            openProfile={() => setShowProfile(true)}
+            reload={reload}
+            setPortalMode={setPortalMode}
             setFrontLogin={setFrontLogin}
             setFrontQuery={setFrontQuery}
             setFrontRequestForm={setFrontRequestForm}
@@ -1740,6 +1739,421 @@ function AiView(props: {
             </button>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function FrontDeskPinterestView(props: {
+  aiCreditsRemaining: number;
+  busy: string;
+  frontLogin: { name: string; team: string; phone: string };
+  frontFavoriteIds: string[];
+  frontLikedIds: string[];
+  frontQuery: string;
+  frontRequestForm: { purpose: string; dueAt: string; note: string };
+  frontSamples: Sample[];
+  frontSelectedIds: string[];
+  frontSelectedSamples: Sample[];
+  frontUser: { name: string; team: string; phone: string } | null;
+  requests: BorrowRequest[];
+  selected?: Sample;
+  generateFrontPpt: () => Promise<void>;
+  openProfile: () => void;
+  reload: () => Promise<void>;
+  setPortalMode: (value: PortalMode) => void;
+  setFrontLogin: Dispatch<SetStateAction<{ name: string; team: string; phone: string }>>;
+  setFrontQuery: (value: string) => void;
+  setFrontRequestForm: Dispatch<SetStateAction<{ purpose: string; dueAt: string; note: string }>>;
+  setSelectedId: (value: string) => void;
+  loginFrontDesk: () => void;
+  submitFrontBorrowRequest: (target: Sample | Sample[]) => Promise<void>;
+  toggleFrontFavorite: (sample: Sample) => void;
+  toggleFrontLike: (sample: Sample) => void;
+  toggleFrontSelect: (sample: Sample) => void;
+}) {
+  const [frontFilter, setFrontFilter] = useState<"all" | "available" | "favorites" | "selected">("all");
+  const [frontDetailId, setFrontDetailId] = useState<string | null>(null);
+  const [menuCollapsed, setMenuCollapsed] = useState(false);
+  const visibleSamples = props.frontSamples.filter((sample) => {
+    if (frontFilter === "available") {
+      return sample.status === "in_stock";
+    }
+    if (frontFilter === "favorites") {
+      return props.frontFavoriteIds.includes(sample.id);
+    }
+    if (frontFilter === "selected") {
+      return props.frontSelectedIds.includes(sample.id);
+    }
+    return true;
+  });
+  const detailSample = frontDetailId ? props.frontSamples.find((sample) => sample.id === frontDetailId) || null : null;
+  const recommendationSamples = detailSample
+    ? props.frontSamples
+        .filter((sample) => sample.id !== detailSample.id)
+        .map((sample) => {
+          const targetTags = new Set(formatTags(detailSample.styleTags));
+          const tagHits = formatTags(sample.styleTags).filter((tag) => targetTags.has(tag)).length;
+          const categoryHit = sample.category && sample.category === detailSample.category ? 4 : 0;
+          const colorHit = sample.color && sample.color === detailSample.color ? 2 : 0;
+          return { sample, score: tagHits + categoryHit + colorHit };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 18)
+        .map((item) => item.sample)
+    : [];
+  const menuItems = [
+    { id: "all" as const, label: "全部", icon: Home, count: props.frontSamples.length },
+    {
+      id: "available" as const,
+      label: "在库",
+      icon: BadgeCheck,
+      count: props.frontSamples.filter((sample) => sample.status === "in_stock").length
+    },
+    { id: "favorites" as const, label: "收藏", icon: Bookmark, count: props.frontFavoriteIds.length },
+    { id: "selected" as const, label: "已选", icon: CheckSquare, count: props.frontSelectedIds.length }
+  ];
+  const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
+
+  const openSample = (sample: Sample) => {
+    props.setSelectedId(sample.id);
+    setFrontDetailId(sample.id);
+  };
+
+  const renderPinCard = (sample: Sample, compact = false) => {
+    const favorited = props.frontFavoriteIds.includes(sample.id);
+    const selected = props.frontSelectedIds.includes(sample.id);
+    const liked = props.frontLikedIds.includes(sample.id);
+    return (
+      <article
+        className={`front-pin-card ${props.selected?.id === sample.id ? "active" : ""} ${compact ? "compact" : ""}`}
+        key={sample.id}
+      >
+        <button className="front-pin-image" onClick={() => openSample(sample)} type="button">
+          <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+        </button>
+        <div className="front-pin-actions">
+          <button
+            aria-label="收藏"
+            className={favorited ? "front-round-action active" : "front-round-action"}
+            onClick={() => props.toggleFrontFavorite(sample)}
+            type="button"
+          >
+            <Heart fill={favorited ? "currentColor" : "none"} size={16} />
+          </button>
+          <button
+            aria-label="选择"
+            className={selected ? "front-round-action active" : "front-round-action"}
+            onClick={() => props.toggleFrontSelect(sample)}
+            type="button"
+          >
+            <Check size={16} />
+          </button>
+        </div>
+        <div className="front-pin-body">
+          <button className="front-pin-title" onClick={() => openSample(sample)} type="button">
+            <strong>{sample.name}</strong>
+          </button>
+          <span>{sample.sku} · {sample.category}</span>
+          <div className="front-card-meta">
+            <small className={`status ${sample.status}`}>{statusText[sample.status]}</small>
+            <small>{sample.color || sample.fabric}</small>
+            <button
+              className={liked ? "front-action active" : "front-action"}
+              onClick={() => props.toggleFrontLike(sample)}
+              type="button"
+            >
+              <ThumbsUp fill={liked ? "currentColor" : "none"} size={14} />
+              {sampleLikeCount(sample, props.frontLikedIds)}
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  };
+
+  if (!props.frontUser) {
+    return (
+      <section className="front-login-layout">
+        <div className="panel front-hero-panel">
+          <p className="eyebrow">业务前台</p>
+          <h2>业务员登录后可查看设计部在线样衣</h2>
+          <p>前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。</p>
+          <div className="front-hero-stats">
+            <span>在线样衣 {props.frontSamples.length}</span>
+            <span>可申请 {props.frontSamples.filter((sample) => sample.status === "in_stock").length}</span>
+            <span>待处理 {props.requests.filter((request) => request.status === "pending").length}</span>
+          </div>
+        </div>
+        <div className="panel front-login-card">
+          <div className="form-toolbar">
+            <div>
+              <h2>前台入口登录</h2>
+              <p>用于记录申请人和业务组</p>
+            </div>
+            <UserRound size={24} />
+          </div>
+          <Field
+            label="业务员姓名"
+            value={props.frontLogin.name}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, name: value }))}
+          />
+          <Field
+            label="业务组"
+            value={props.frontLogin.team}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, team: value }))}
+          />
+          <Field
+            label="手机"
+            value={props.frontLogin.phone}
+            onChange={(value) => props.setFrontLogin((current) => ({ ...current, phone: value }))}
+          />
+          <button onClick={props.loginFrontDesk} type="button">
+            <LogIn size={16} />
+            进入前台
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`front-pinterest-shell ${menuCollapsed ? "menu-collapsed" : ""}`}>
+      <aside className="front-side-menu">
+        <div className="front-menu-head">
+          <button
+            aria-label={menuCollapsed ? "展开菜单" : "收起菜单"}
+            className="front-menu-toggle"
+            onClick={() => setMenuCollapsed((value) => !value)}
+            type="button"
+          >
+            {menuCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+          <div className="front-menu-brand">
+            <Shirt size={20} />
+            <span>舜天信兴</span>
+          </div>
+        </div>
+
+        <nav className="front-menu-list">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                className={frontFilter === item.id ? "active" : ""}
+                key={item.id}
+                onClick={() => {
+                  setFrontFilter(item.id);
+                  setFrontDetailId(null);
+                }}
+                type="button"
+              >
+                <Icon size={19} />
+                <span>{item.label}</span>
+                <b>{item.count}</b>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="front-menu-foot">
+          <button onClick={() => props.setPortalMode("admin")} type="button">
+            <ShieldCheck size={18} />
+            <span>后台</span>
+          </button>
+          <button onClick={() => void props.reload()} type="button">
+            <RotateCcw size={18} />
+            <span>刷新</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="front-workspace">
+        <header className="front-floating-topbar">
+          <label className="front-search-pill">
+            <Search size={16} />
+            <input onChange={(event) => props.setFrontQuery(event.target.value)} placeholder="搜索" value={props.frontQuery} />
+          </label>
+          <div className="front-top-actions">
+            <span className="front-credit-chip">
+              <Coins size={15} />
+              {props.aiCreditsRemaining}
+            </span>
+            <button
+              disabled={!props.frontSelectedSamples.length || props.busy === "ppt"}
+              onClick={() => void props.generateFrontPpt()}
+              type="button"
+            >
+              {props.busy === "ppt" ? <Loader2 className="spin" size={16} /> : <Presentation size={16} />}
+              推款 PPT
+              {props.frontSelectedSamples.length ? <b>{props.frontSelectedSamples.length}</b> : null}
+            </button>
+            <button className="ghost" onClick={props.openProfile} type="button">
+              <UserRound size={16} />
+              我的
+            </button>
+          </div>
+        </header>
+
+        {!detailSample ? (
+          <div className="front-board">
+            <div className="front-board-head">
+              <div>
+                <p className="eyebrow">业务前台</p>
+                <h2>{filterLabel}样衣</h2>
+              </div>
+              <div className="front-board-stats">
+                <span>{visibleSamples.length} 件</span>
+                <span>已选 {props.frontSelectedSamples.length}</span>
+                <span>{props.frontUser.name} · {props.frontUser.team}</span>
+              </div>
+            </div>
+
+            {visibleSamples.length ? (
+              <div className="front-waterfall">{visibleSamples.map((sample) => renderPinCard(sample))}</div>
+            ) : (
+              <EmptyState />
+            )}
+          </div>
+        ) : (
+          <div className="front-detail-page">
+            <button className="front-back-button" onClick={() => setFrontDetailId(null)} type="button">
+              <ArrowLeft size={18} />
+              返回
+            </button>
+
+            <div className="front-detail-hero">
+              <div className="front-detail-image">
+                <img alt={detailSample.name} src={detailSample.enhancedImageUrl || detailSample.imageUrl} />
+                <button aria-label="放大图片" className="front-zoom-button" type="button">
+                  <Expand size={18} />
+                </button>
+              </div>
+
+              <div className="front-detail-info">
+                <div className="front-detail-actions">
+                  <button
+                    className={props.frontFavoriteIds.includes(detailSample.id) ? "front-icon-text active" : "front-icon-text"}
+                    onClick={() => props.toggleFrontFavorite(detailSample)}
+                    type="button"
+                  >
+                    <Heart fill={props.frontFavoriteIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
+                    收藏
+                  </button>
+                  <button
+                    className={props.frontSelectedIds.includes(detailSample.id) ? "front-icon-text active" : "front-icon-text"}
+                    onClick={() => props.toggleFrontSelect(detailSample)}
+                    type="button"
+                  >
+                    <Check size={18} />
+                    选择
+                  </button>
+                  <button
+                    className={props.frontLikedIds.includes(detailSample.id) ? "front-icon-text active" : "front-icon-text"}
+                    onClick={() => props.toggleFrontLike(detailSample)}
+                    type="button"
+                  >
+                    <ThumbsUp fill={props.frontLikedIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
+                    {sampleLikeCount(detailSample, props.frontLikedIds)}
+                  </button>
+                </div>
+
+                <div>
+                  <p className="eyebrow">{detailSample.sku}</p>
+                  <h2>{detailSample.name}</h2>
+                  <p>{detailSample.color} · {detailSample.fabric}</p>
+                </div>
+
+                <div className="front-detail-tags">
+                  {formatTags(detailSample.styleTags).slice(0, 7).map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+
+                <div className="info-grid">
+                  <Info label="状态" value={statusText[detailSample.status]} />
+                  <Info label="季节" value={detailSample.season} />
+                  <Info label="尺码" value={detailSample.size} />
+                  <Info label="库位" value={`${detailSample.location} ${detailSample.rack}`} />
+                </div>
+
+                {props.frontSelectedSamples.length > 0 && (
+                  <div className="selected-strip">
+                    <strong>已选推款</strong>
+                    <div>
+                      {props.frontSelectedSamples.map((sample) => (
+                        <span key={sample.id}>{sample.sku}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="front-request-form compact">
+                  <Field
+                    label="借样用途"
+                    value={props.frontRequestForm.purpose}
+                    onChange={(value) => props.setFrontRequestForm((current) => ({ ...current, purpose: value }))}
+                  />
+                  <label>
+                    期望归还
+                    <input
+                      onChange={(event) =>
+                        props.setFrontRequestForm((current) => ({ ...current, dueAt: event.target.value }))
+                      }
+                      type="datetime-local"
+                      value={props.frontRequestForm.dueAt}
+                    />
+                  </label>
+                  <label>
+                    备注
+                    <textarea
+                      onChange={(event) =>
+                        props.setFrontRequestForm((current) => ({ ...current, note: event.target.value }))
+                      }
+                      value={props.frontRequestForm.note}
+                    />
+                  </label>
+                  <div className="button-row">
+                    <button
+                      disabled={props.busy === "front-request"}
+                      onClick={() => void props.submitFrontBorrowRequest(detailSample)}
+                      type="button"
+                    >
+                      {props.busy === "front-request" ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
+                      申请当前样衣
+                    </button>
+                    <button
+                      className="ghost"
+                      disabled={props.busy === "front-request" || !props.frontSelectedSamples.length}
+                      onClick={() => void props.submitFrontBorrowRequest(props.frontSelectedSamples)}
+                      type="button"
+                    >
+                      <ClipboardList size={16} />
+                      申请已选
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <section className="front-recommend-section">
+              <div className="front-board-head">
+                <div>
+                  <p className="eyebrow">近似款推荐</p>
+                  <h2>{detailSample.category || "相关样衣"}</h2>
+                </div>
+                <span>{recommendationSamples.length} 件</span>
+              </div>
+              {recommendationSamples.length ? (
+                <div className="front-waterfall recommend">
+                  {recommendationSamples.map((sample) => renderPinCard(sample, true))}
+                </div>
+              ) : (
+                <EmptyState />
+              )}
+            </section>
+          </div>
+        )}
       </div>
     </section>
   );
