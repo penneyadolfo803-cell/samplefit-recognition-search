@@ -66,6 +66,23 @@ import {
 } from "./lib/demo";
 import { businessTeams } from "./lib/bulk-fixtures";
 import {
+  businessRolePermissions,
+  businessRoles,
+  createDefaultSystemConfig,
+  normalizeSystemConfig,
+  purchaseAiCredits,
+  updateAccountEnabled,
+  updateAccountRole,
+  type AccountUser,
+  type BusinessRole,
+  type SystemConfig
+} from "./lib/admin-config";
+import {
+  createDesignerDashboard,
+  resolveSampleDesigner,
+  type DesignerDashboard
+} from "./lib/designer-dashboard";
+import {
   createBorrowAnalytics,
   createBorrowBillingRows,
   filterBillingRows,
@@ -96,7 +113,7 @@ import type {
   SimilarResult
 } from "./lib/types";
 
-type TabId = "library" | "entry" | "bulk" | "borrow" | "billing" | "analytics" | "ai";
+type TabId = "library" | "entry" | "bulk" | "borrow" | "billing" | "analytics" | "ai" | "settings" | "designerMe";
 type PortalMode = "admin" | "front";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
@@ -134,14 +151,15 @@ type BillingRule = {
   retiredRate: number;
 };
 
-const appName = "舜天信兴样衣管理系统";
 const fixedAiCreditsRemaining = 1200;
 const storageKeys = {
   frontUser: "samplefit.front.user",
   frontFavorites: "samplefit.front.favorites",
   pptRecords: "samplefit.front.pptRecords",
   feeBills: "samplefit.front.feeBills",
-  billingRule: "samplefit.billing.rule"
+  billingRule: "samplefit.billing.rule",
+  systemConfig: "samplefit.system.config",
+  currentDesigner: "samplefit.admin.currentDesigner"
 };
 
 const designStorageZones = [
@@ -195,7 +213,9 @@ const tabs = [
   { id: "borrow" as const, label: "借还", icon: ClipboardList },
   { id: "billing" as const, label: "账单", icon: Banknote },
   { id: "analytics" as const, label: "分析", icon: ReceiptText },
-  { id: "ai" as const, label: "识别检索", icon: Camera }
+  { id: "ai" as const, label: "识别检索", icon: Camera },
+  { id: "designerMe" as const, label: "我的", icon: UserRound },
+  { id: "settings" as const, label: "配置", icon: Settings2 }
 ];
 
 const statusText = {
@@ -286,6 +306,13 @@ function App() {
     ...defaultBillingRule,
     ...(readStoredObject<Partial<BillingRule>>(storageKeys.billingRule) || {})
   }));
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(() =>
+    normalizeSystemConfig(readStoredObject<Partial<SystemConfig>>(storageKeys.systemConfig))
+  );
+  const [currentDesigner, setCurrentDesigner] = useState(
+    () => readStoredObject<string>(storageKeys.currentDesigner) || "陈设计"
+  );
+  const [creditPurchaseAmount, setCreditPurchaseAmount] = useState("1000");
   const [searchImage, setSearchImage] = useState("");
   const [searchText, setSearchText] = useState("");
   const [similarityThreshold, setSimilarityThreshold] = useState(0.12);
@@ -314,7 +341,12 @@ function App() {
   });
 
   const selected = samples.find((sample) => sample.id === selectedId) || samples[0];
-  const aiCreditsRemaining = health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
+  const designerAccounts = useMemo(
+    () => systemConfig.accounts.filter((account) => account.role === "设计师" || account.role === "设计总监"),
+    [systemConfig.accounts]
+  );
+  const designerNames = useMemo(() => designerAccounts.map((account) => account.name), [designerAccounts]);
+  const aiCreditsRemaining = systemConfig.aiCreditsRemaining ?? health?.aiCreditsRemaining ?? fixedAiCreditsRemaining;
   const designSamples = useMemo(() => samples.filter((sample) => sample.source !== "bulk"), [samples]);
   const bulkSamples = useMemo(() => samples.filter((sample) => sample.source === "bulk"), [samples]);
   const frontCatalogCounts = useMemo(() => getFrontCatalogCounts(samples), [samples]);
@@ -333,6 +365,10 @@ function App() {
   const borrowBillingRows = useMemo(
     () => createBorrowBillingRows(samples, borrowRequests, (sample) => calculateBorrowFee(sample, billingRule)),
     [samples, borrowRequests, billingRule]
+  );
+  const designerDashboard = useMemo(
+    () => createDesignerDashboard(designSamples, borrowRequests, currentDesigner, designerNames),
+    [designSamples, borrowRequests, currentDesigner, designerNames]
   );
 
   const filteredSamples = useMemo(() => {
@@ -422,6 +458,28 @@ function App() {
   useEffect(() => {
     writeStoredObject(storageKeys.billingRule, billingRule);
   }, [billingRule]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.systemConfig, systemConfig);
+    if (typeof document !== "undefined") {
+      document.title = systemConfig.appName;
+      if (systemConfig.backgroundImageUrl) {
+        document.documentElement.style.setProperty("--samplefit-bg-image", `url("${systemConfig.backgroundImageUrl}")`);
+      } else {
+        document.documentElement.style.removeProperty("--samplefit-bg-image");
+      }
+    }
+  }, [systemConfig]);
+
+  useEffect(() => {
+    if (designerNames.length && !designerNames.includes(currentDesigner)) {
+      setCurrentDesigner(designerNames[0]);
+    }
+  }, [currentDesigner, designerNames]);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.currentDesigner, currentDesigner);
+  }, [currentDesigner]);
 
   async function reload() {
     setBusy("load");
@@ -631,6 +689,16 @@ function App() {
     setTab("entry");
   }
 
+  function startDesignerCreate() {
+    setDraft({
+      ...emptyDraft,
+      ownerTeam: currentDesigner,
+      visibilityScope: `${currentDesigner},设计中心,样衣管理员`,
+      notes: `${currentDesigner} 上传的设计样衣`
+    });
+    setTab("entry");
+  }
+
   function startBulkCreate(team = businessTeams[0]) {
     setBulkDraft({
       ...emptyDraft,
@@ -642,6 +710,53 @@ function App() {
       notes: "业务组大货样品"
     });
     setTab("bulk");
+  }
+
+  function updateSystemConfig<K extends keyof SystemConfig>(key: K, value: SystemConfig[K]) {
+    setSystemConfig((current) => normalizeSystemConfig({ ...current, [key]: value }));
+  }
+
+  function updateAccount(accountId: string, patch: Partial<AccountUser>) {
+    setSystemConfig((current) =>
+      normalizeSystemConfig({
+        ...current,
+        accounts: current.accounts.map((account) => (account.id === accountId ? { ...account, ...patch } : account))
+      })
+    );
+  }
+
+  function changeAccountRole(accountId: string, role: BusinessRole) {
+    setSystemConfig((current) => updateAccountRole(current, accountId, role));
+  }
+
+  function toggleAccountEnabled(accountId: string, enabled: boolean) {
+    setSystemConfig((current) => updateAccountEnabled(current, accountId, enabled));
+  }
+
+  function buyAiCredits() {
+    const amount = parseMoneyValue(creditPurchaseAmount);
+    if (!amount) {
+      setNotice("请输入本次购买的 AI 积分数量");
+      return;
+    }
+    setSystemConfig((current) => purchaseAiCredits(current, amount));
+    setNotice(`已为演示账号增加 ${Math.round(amount)} AI 积分`);
+  }
+
+  async function uploadConfigBackground(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    updateSystemConfig("backgroundImageUrl", await fileToOptimizedDataUrl(file, 1600));
+  }
+
+  async function uploadConfigIcon(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    updateSystemConfig("iconUrl", await fileToOptimizedDataUrl(file, 256));
   }
 
   function editSample(sample: Sample) {
@@ -1031,11 +1146,11 @@ function App() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <Shirt size={22} />
+            {systemConfig.iconUrl ? <img alt={systemConfig.uiName} src={systemConfig.iconUrl} /> : <Shirt size={22} />}
           </div>
           <div>
-            <strong>舜天信兴</strong>
-            <span>样衣管理系统</span>
+            <strong>{systemConfig.uiName}</strong>
+            <span>{systemConfig.appName}</span>
           </div>
         </div>
 
@@ -1087,7 +1202,7 @@ function App() {
         {portalMode === "admin" && (
           <header className="topbar">
             <div>
-              <p className="eyebrow">{appName}</p>
+              <p className="eyebrow">{systemConfig.appName}</p>
               <h1>{titleFor(tab)}</h1>
             </div>
             <div className="top-actions">
@@ -1100,9 +1215,9 @@ function App() {
                 <span>AI 积分剩余</span>
                 <strong>{aiCreditsRemaining}</strong>
               </div>
-              <button className="ghost" onClick={() => setShowProfile(true)} type="button">
+              <button className="ghost" onClick={() => setTab("designerMe")} type="button">
                 <UserRound size={16} />
-                我的
+                {currentDesigner}
               </button>
               <button className="ghost" onClick={() => void reload()} type="button">
                 <RotateCcw size={16} />
@@ -1280,6 +1395,35 @@ function App() {
                 runSimilarSearch={runSimilarSearch}
                 setSelectedId={setSelectedId}
                 setTab={setTab}
+              />
+            )}
+
+            {tab === "designerMe" && (
+              <DesignerMeView
+                currentDesigner={currentDesigner}
+                dashboard={designerDashboard}
+                designerAccounts={designerAccounts}
+                designerNames={designerNames}
+                samples={designSamples}
+                setCurrentDesigner={setCurrentDesigner}
+                setSelectedId={setSelectedId}
+                setTab={setTab}
+                startDesignerCreate={startDesignerCreate}
+              />
+            )}
+
+            {tab === "settings" && (
+              <AdminSettingsView
+                config={systemConfig}
+                creditPurchaseAmount={creditPurchaseAmount}
+                setCreditPurchaseAmount={setCreditPurchaseAmount}
+                updateAccount={updateAccount}
+                changeAccountRole={changeAccountRole}
+                toggleAccountEnabled={toggleAccountEnabled}
+                updateSystemConfig={updateSystemConfig}
+                uploadConfigBackground={uploadConfigBackground}
+                uploadConfigIcon={uploadConfigIcon}
+                buyAiCredits={buyAiCredits}
               />
             )}
           </>
@@ -1577,6 +1721,7 @@ function EntryView(props: {
           <Field label="面料" value={props.draft.fabric} onChange={(value) => setField("fabric", value)} />
           <Field label="成分" value={props.draft.composition} onChange={(value) => setField("composition", value)} />
           <Field label="供应商" value={props.draft.supplier} onChange={(value) => setField("supplier", value)} />
+          <Field label="归属设计师/团队" value={props.draft.ownerTeam} onChange={(value) => setField("ownerTeam", value)} />
           <Field label="吊牌价" value={props.draft.retailPrice} onChange={(value) => setField("retailPrice", value)} />
           <StorageSelector
             location={props.draft.location}
@@ -2367,6 +2512,283 @@ function DataAnalysisView(props: {
               <strong>{item.label}</strong>
               <span>历史借用 {item.count} 次，费用 {formatMoney(item.fee)}</span>
               <small>建议：下一季提前准备 3-5 件同品类、同风格、不同价位段样衣。</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DesignerMeView(props: {
+  currentDesigner: string;
+  dashboard: DesignerDashboard;
+  designerAccounts: AccountUser[];
+  designerNames: string[];
+  samples: Sample[];
+  setCurrentDesigner: (value: string) => void;
+  setSelectedId: (value: string) => void;
+  setTab: (value: TabId) => void;
+  startDesignerCreate: () => void;
+}) {
+  const distribution = props.designerNames.map((name) => ({
+    name,
+    count: props.samples.filter((sample) => resolveSampleDesigner(sample, props.designerNames) === name).length
+  }));
+
+  return (
+    <section className="designer-layout">
+      <div className="panel designer-hero-panel">
+        <div className="form-toolbar">
+          <div>
+            <p className="eyebrow">设计部后台 · 我的</p>
+            <h2>{props.currentDesigner} 的款式表现</h2>
+            <span>查看自己上传款式的选中率、下单率和客户区域偏好。</span>
+          </div>
+          <button onClick={props.startDesignerCreate} type="button">
+            <PackagePlus size={16} />
+            上传我的新款
+          </button>
+        </div>
+        <label>
+          当前设计师
+          <select onChange={(event) => props.setCurrentDesigner(event.target.value)} value={props.currentDesigner}>
+            {props.designerAccounts.map((account) => (
+              <option key={account.id} value={account.name}>
+                {account.name} · {account.role}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="designer-kpis">
+        <div className="metric money-metric">
+          <Shirt size={18} />
+          <span>我的款式</span>
+          <strong>{props.dashboard.ownedSamples.length}</strong>
+        </div>
+        <div className="metric money-metric">
+          <Heart size={18} />
+          <span>选中率</span>
+          <strong>{formatPercent(props.dashboard.selectionRate)}</strong>
+        </div>
+        <div className="metric money-metric">
+          <ReceiptText size={18} />
+          <span>下单率</span>
+          <strong>{formatPercent(props.dashboard.orderRate)}</strong>
+        </div>
+        <div className="metric money-metric">
+          <Database size={18} />
+          <span>品牌客户最多</span>
+          <strong>{props.dashboard.topClientRegions[0]?.label || "暂无"}</strong>
+        </div>
+      </div>
+
+      <div className="panel designer-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>我的款式</h2>
+            <p>点击款式可回到样衣库查看完整档案。</p>
+          </div>
+          <span className="billing-current-team">已选 {props.dashboard.selectedCount} 件</span>
+        </div>
+        <div className="designer-sample-grid">
+          {props.dashboard.ownedSamples.slice(0, 12).map((sample) => (
+            <button
+              className="designer-sample-card"
+              key={sample.id}
+              onClick={() => {
+                props.setSelectedId(sample.id);
+                props.setTab("library");
+              }}
+              type="button"
+            >
+              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <strong>{sample.name}</strong>
+              <span>{sample.sku} · {sample.category}</span>
+              <small>{sample.selected ? "已被前台选中" : "待前台选择"} · 借出 {sample.borrowHistory.length} 次</small>
+            </button>
+          ))}
+          {!props.dashboard.ownedSamples.length && <EmptyState />}
+        </div>
+      </div>
+
+      <div className="analysis-grid wide">
+        <SimpleRankedPanel title="品牌客户区域" rows={props.dashboard.topClientRegions} />
+        <SimpleRankedPanel title="我的品类分布" rows={props.dashboard.topCategories} />
+      </div>
+
+      <div className="panel designer-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>设计师作品分布</h2>
+            <p>用于设计总监快速判断各设计师上传和被选择情况。</p>
+          </div>
+        </div>
+        <div className="prep-list">
+          {distribution.map((item) => (
+            <div key={item.name}>
+              <strong>{item.name}</strong>
+              <span>{item.count} 件设计样衣</span>
+              <small>{item.name === props.currentDesigner ? "当前查看账号" : "可在上方切换查看"}</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AdminSettingsView(props: {
+  config: SystemConfig;
+  creditPurchaseAmount: string;
+  setCreditPurchaseAmount: (value: string) => void;
+  updateAccount: (accountId: string, patch: Partial<AccountUser>) => void;
+  changeAccountRole: (accountId: string, role: BusinessRole) => void;
+  toggleAccountEnabled: (accountId: string, enabled: boolean) => void;
+  updateSystemConfig: <K extends keyof SystemConfig>(key: K, value: SystemConfig[K]) => void;
+  uploadConfigBackground: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  uploadConfigIcon: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  buyAiCredits: () => void;
+}) {
+  return (
+    <section className="settings-layout">
+      <div className="panel settings-panel">
+        <div className="form-toolbar">
+          <div>
+            <p className="eyebrow">系统配置</p>
+            <h2>界面与品牌</h2>
+            <span>调整客户看到的系统名称、侧边栏短名称、背景图和图标。</span>
+          </div>
+          <Settings2 size={24} />
+        </div>
+        <div className="form-grid">
+          <Field
+            label="界面名称"
+            value={props.config.appName}
+            onChange={(value) => props.updateSystemConfig("appName", value)}
+          />
+          <Field
+            label="UI 短名称"
+            value={props.config.uiName}
+            onChange={(value) => props.updateSystemConfig("uiName", value)}
+          />
+        </div>
+        <div className="settings-upload-grid">
+          <div className="settings-preview">
+            {props.config.backgroundImageUrl ? (
+              <img alt="背景图预览" src={props.config.backgroundImageUrl} />
+            ) : (
+              <span>当前使用默认动态玻璃背景</span>
+            )}
+          </div>
+          <div className="settings-upload-actions">
+            <label className="file-button wide">
+              <ImageUp size={16} />
+              更换背景图
+              <input accept="image/*" onChange={props.uploadConfigBackground} type="file" />
+            </label>
+            <button className="ghost" onClick={() => props.updateSystemConfig("backgroundImageUrl", "")} type="button">
+              恢复默认背景
+            </button>
+          </div>
+          <div className="settings-icon-preview">
+            {props.config.iconUrl ? <img alt="图标预览" src={props.config.iconUrl} /> : <Shirt size={28} />}
+          </div>
+          <div className="settings-upload-actions">
+            <label className="file-button wide">
+              <Upload size={16} />
+              更换图标
+              <input accept="image/*" onChange={props.uploadConfigIcon} type="file" />
+            </label>
+            <button className="ghost" onClick={() => props.updateSystemConfig("iconUrl", "")} type="button">
+              恢复默认图标
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel settings-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>AI 积分购买</h2>
+            <p>当前演示为本地积分池，后续可接充值和消耗流水。</p>
+          </div>
+          <Coins size={24} />
+        </div>
+        <div className="settings-credit-row">
+          <div className="metric money-metric">
+            <Coins size={18} />
+            <span>AI 积分剩余</span>
+            <strong>{props.config.aiCreditsRemaining}</strong>
+          </div>
+          <Field
+            label="当前积分余额"
+            value={String(props.config.aiCreditsRemaining)}
+            onChange={(value) => props.updateSystemConfig("aiCreditsRemaining", Math.max(0, Math.round(parseMoneyValue(value))))}
+          />
+          <Field
+            label="本次购买积分"
+            value={props.creditPurchaseAmount}
+            onChange={props.setCreditPurchaseAmount}
+          />
+          <button onClick={props.buyAiCredits} type="button">
+            <Coins size={16} />
+            购买积分
+          </button>
+        </div>
+      </div>
+
+      <div className="panel settings-panel settings-accounts-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>账号与权限</h2>
+            <p>按身份维护权限范围：业务总经理、业务经理、业务助理、面料员、设计师、设计总监。</p>
+          </div>
+          <ShieldCheck size={24} />
+        </div>
+        <div className="account-table">
+          <div className="account-row head">
+            <span>账号</span>
+            <span>团队</span>
+            <span>身份</span>
+            <span>权限</span>
+            <span>状态</span>
+          </div>
+          {props.config.accounts.map((account) => (
+            <div className="account-row" key={account.id}>
+              <input
+                onChange={(event) => props.updateAccount(account.id, { name: event.target.value })}
+                value={account.name}
+              />
+              <input
+                onChange={(event) => props.updateAccount(account.id, { team: event.target.value })}
+                value={account.team}
+              />
+              <select
+                onChange={(event) => props.changeAccountRole(account.id, event.target.value as BusinessRole)}
+                value={account.role}
+              >
+                {businessRoles.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <div className="permission-tags">
+                {businessRolePermissions[account.role].slice(0, 4).map((permission) => (
+                  <span key={permission}>{permission}</span>
+                ))}
+              </div>
+              <label className="checkline compact">
+                <input
+                  checked={account.enabled}
+                  onChange={(event) => props.toggleAccountEnabled(account.id, event.target.checked)}
+                  type="checkbox"
+                />
+                启用
+              </label>
             </div>
           ))}
         </div>
@@ -3552,6 +3974,30 @@ function RankedPanel(props: { title: string; rows: RankedMetric[] }) {
   );
 }
 
+function SimpleRankedPanel(props: { title: string; rows: Array<{ label: string; count: number }> }) {
+  const maxCount = Math.max(...props.rows.map((row) => row.count), 1);
+  return (
+    <div className="panel ranked-panel">
+      <h2>{props.title}</h2>
+      <div className="ranked-list">
+        {props.rows.length ? (
+          props.rows.map((row) => (
+            <div key={row.label}>
+              <div>
+                <strong>{row.label}</strong>
+                <span>{row.count} 次</span>
+              </div>
+              <i style={{ width: `${Math.max(8, (row.count / maxCount) * 100)}%` }} />
+            </div>
+          ))
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Info(props: { label: string; value: string }) {
   return (
     <div className="info">
@@ -3638,7 +4084,9 @@ function titleFor(tab: TabId) {
     borrow: "样衣借还",
     billing: "账单拉取",
     analytics: "数据分析",
-    ai: "识别检索与自动报价"
+    ai: "识别检索与自动报价",
+    designerMe: "设计师个人中心",
+    settings: "系统配置与权限"
   }[tab];
 }
 
@@ -3756,6 +4204,10 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "CNY"
   }).format(value);
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
 function billingSourceText(source: BorrowBillingRow["source"]) {
@@ -3900,9 +4352,10 @@ function sampleLikeCount(sample: Sample, favoriteIds: string[]) {
 
 async function createRecommendationPpt(samples: Sample[], user: FrontUser, fileName: string) {
   const { default: pptxgen } = await import("pptxgenjs");
+  const pptAppName = createDefaultSystemConfig().appName;
   const pptx = new pptxgen();
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = appName;
+  pptx.author = pptAppName;
   pptx.company = "舜天信兴";
   pptx.subject = "业务前台推款方案";
   pptx.title = fileName.replace(/\.pptx$/i, "");
@@ -4011,7 +4464,7 @@ async function createRecommendationPpt(samples: Sample[], user: FrontUser, fileN
       breakLine: false,
       fit: "shrink"
     });
-    slide.addText(appName, {
+    slide.addText(pptAppName, {
       x: 5.58,
       y: 6.42,
       w: 3.8,
