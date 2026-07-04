@@ -2135,6 +2135,7 @@ function FrontDeskPinterestView(props: {
   const [menuCollapsed, setMenuCollapsed] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
+  const [zoomSample, setZoomSample] = useState<Sample | null>(null);
   const catalogOptions: Array<{ id: FrontCatalogSource; label: string; icon: LucideIcon; count: number }> = [
     { id: "all", label: "全部样衣", icon: Home, count: props.frontCatalogCounts.all },
     { id: "design", label: "设计样衣", icon: Shirt, count: props.frontCatalogCounts.design },
@@ -2444,7 +2445,12 @@ function FrontDeskPinterestView(props: {
             <div className="front-detail-hero">
               <div className="front-detail-image">
                 <img alt={detailSample.name} src={detailSample.enhancedImageUrl || detailSample.imageUrl} />
-                <button aria-label="放大图片" className="front-zoom-button" type="button">
+                <button
+                  aria-label="放大图片"
+                  className="front-zoom-button"
+                  onClick={() => setZoomSample(detailSample)}
+                  type="button"
+                >
                   <Expand size={18} />
                 </button>
               </div>
@@ -2659,6 +2665,30 @@ function FrontDeskPinterestView(props: {
                   </div>
                 )}
               </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {zoomSample && (
+        <div className="front-image-zoom-backdrop" onClick={() => setZoomSample(null)} role="presentation">
+          <section
+            aria-label="样衣图片放大预览"
+            className="front-image-zoom-panel"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="profile-head">
+              <div>
+                <p className="eyebrow">{zoomSample.sku}</p>
+                <h2>{zoomSample.name}</h2>
+              </div>
+              <button className="icon-button" onClick={() => setZoomSample(null)} type="button">
+                <X size={17} />
+              </button>
+            </div>
+            <div className="front-image-zoom-stage">
+              <img alt={zoomSample.name} src={zoomSample.enhancedImageUrl || zoomSample.imageUrl} />
             </div>
           </section>
         </div>

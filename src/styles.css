@@ -1776,6 +1776,52 @@ button.danger:disabled {
   -webkit-backdrop-filter: blur(12px);
 }
 
+.front-image-zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 2vw, 28px);
+  background: rgb(18 32 46 / 0.34);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+.front-image-zoom-panel {
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  border: var(--glass-border);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.84), rgb(255 255 255 / 0.36)),
+    rgb(226 239 250 / 0.78);
+  box-shadow: 0 28px 90px rgb(18 38 56 / 0.3);
+  padding: 14px;
+}
+
+.front-image-zoom-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.46);
+  border: 1px solid rgb(255 255 255 / 0.54);
+}
+
+.front-image-zoom-stage img {
+  max-width: 100%;
+  max-height: calc(100vh - 150px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .front-visual-panel {
   width: min(980px, calc(100vw - 36px));
   max-height: calc(100vh - 36px);
