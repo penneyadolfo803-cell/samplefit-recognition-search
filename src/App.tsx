@@ -12,7 +12,6 @@ import {
   ArrowLeft,
   BadgeCheck,
   Banknote,
-  Bookmark,
   Boxes,
   Camera,
   Check,
@@ -39,7 +38,6 @@ import {
   Shirt,
   ShieldCheck,
   Sparkles,
-  ThumbsUp,
   Upload,
   UserRound,
   Wand2,
@@ -75,6 +73,7 @@ import {
   type FrontCatalogSource
 } from "./lib/front-catalog";
 import { createDemoWhiteBackgroundPreview, fileToOptimizedDataUrl, formatTags } from "./lib/image";
+import { getRecommendedSamples } from "./lib/recommendation";
 import type {
   BomItem,
   BorrowRequest,
@@ -109,6 +108,11 @@ type SampleViewImage = {
   label: string;
   url: string;
 };
+type YunzhiMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+};
 type BillingRule = {
   baseBorrowFee: number;
   borrowRate: number;
@@ -124,11 +128,19 @@ const fixedAiCreditsRemaining = 1200;
 const storageKeys = {
   frontUser: "samplefit.front.user",
   frontFavorites: "samplefit.front.favorites",
-  frontLikes: "samplefit.front.likes",
   pptRecords: "samplefit.front.pptRecords",
   feeBills: "samplefit.front.feeBills",
   billingRule: "samplefit.billing.rule"
 };
+
+const designStorageZones = [
+  { location: "设计部样衣间", racks: ["SJ-01", "SJ-02", "SJ-03", "SJ-04", "SJ-05", "SJ-06", "SJ-07", "SJ-08"] },
+  { location: "上海样衣间", racks: ["A-01", "A-02", "A-03", "B-01", "B-02", "B-11"] },
+  { location: "杭州版房", racks: ["K-01", "K-02", "K-03", "K-04"] },
+  { location: "汉商巴恩风样衣间", racks: ["HS-09-AW", "HS-09-SS", "HS-10-AW"] }
+];
+
+const bulkRackOptions = ["DH-01", "DH-02", "DH-03", "DH-04", "DH-05", "DH-06", "DH-07", "DH-08", "DH-09", "DH-10"];
 
 const emptyDraft: SampleDraft = {
   sku: "",
@@ -147,8 +159,8 @@ const emptyDraft: SampleDraft = {
   sampleKind: "physical",
   source: "design",
   ownerTeam: "设计部",
-  location: "",
-  rack: "",
+  location: "设计部样衣间",
+  rack: "SJ-01",
   supplier: "",
   retailPrice: "",
   imageUrl: "",
@@ -229,13 +241,16 @@ function App() {
     ...emptyDraft,
     source: "bulk",
     ownerTeam: businessTeams[0],
-    location: `${businessTeams[0]}大货样衣区`,
+    location: getDefaultStorageLocation("bulk", businessTeams[0]),
+    rack: bulkRackOptions[0],
     visibilityScope: `${businessTeams[0]},设计中心,样衣管理员`,
     notes: "业务组大货样品"
   });
   const [query, setQuery] = useState("");
   const [bulkQuery, setBulkQuery] = useState("");
   const [bulkTeamFilter, setBulkTeamFilter] = useState("all");
+  const [storageFilter, setStorageFilter] = useState("all");
+  const [bulkStorageFilter, setBulkStorageFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [kindFilter, setKindFilter] = useState("all");
   const [notice, setNotice] = useState("");
@@ -275,8 +290,8 @@ function App() {
   const [frontCatalogSource, setFrontCatalogSource] = useState<FrontCatalogSource>("all");
   const [frontSelectedIds, setFrontSelectedIds] = useState<string[]>([]);
   const [frontFavoriteIds, setFrontFavoriteIds] = useState<string[]>(() => readStoredArray(storageKeys.frontFavorites));
-  const [frontLikedIds, setFrontLikedIds] = useState<string[]>(() => readStoredArray(storageKeys.frontLikes));
   const [showProfile, setShowProfile] = useState(false);
+  const [showYunzhiAssistant, setShowYunzhiAssistant] = useState(false);
   const [pptRecords, setPptRecords] = useState<PptRecord[]>(() => readStoredObject<PptRecord[]>(storageKeys.pptRecords) || []);
   const [feeBills, setFeeBills] = useState<FeeBill[]>(() => readStoredObject<FeeBill[]>(storageKeys.feeBills) || []);
   const [frontRequestForm, setFrontRequestForm] = useState({
@@ -308,6 +323,7 @@ function App() {
     return designSamples.filter((sample) => {
       const matchesStatus = statusFilter === "all" || sample.status === statusFilter;
       const matchesKind = kindFilter === "all" || sample.sampleKind === kindFilter;
+      const matchesStorage = storageFilter === "all" || sample.location === storageFilter;
       const haystack = [
         sample.sku,
         sample.styleNo,
@@ -317,19 +333,21 @@ function App() {
         sample.color,
         sample.fabric,
         sample.location,
+        sample.rack,
         sample.visibilityScope,
         sample.styleTags.join(" ")
       ]
         .join(" ")
         .toLowerCase();
-      return matchesStatus && matchesKind && (!term || haystack.includes(term));
+      return matchesStatus && matchesKind && matchesStorage && (!term || haystack.includes(term));
     });
-  }, [designSamples, query, statusFilter, kindFilter]);
+  }, [designSamples, query, statusFilter, kindFilter, storageFilter]);
 
   const filteredBulkSamples = useMemo(() => {
     const term = bulkQuery.trim().toLowerCase();
     return bulkSamples.filter((sample) => {
       const matchesTeam = bulkTeamFilter === "all" || sample.ownerTeam === bulkTeamFilter;
+      const matchesStorage = bulkStorageFilter === "all" || sample.location === bulkStorageFilter;
       const haystack = [
         sample.sku,
         sample.styleNo,
@@ -339,13 +357,14 @@ function App() {
         sample.fabric,
         sample.ownerTeam,
         sample.location,
+        sample.rack,
         sample.styleTags.join(" ")
       ]
         .join(" ")
         .toLowerCase();
-      return matchesTeam && (!term || haystack.includes(term));
+      return matchesTeam && matchesStorage && (!term || haystack.includes(term));
     });
-  }, [bulkSamples, bulkQuery, bulkTeamFilter]);
+  }, [bulkSamples, bulkQuery, bulkTeamFilter, bulkStorageFilter]);
 
   const frontSamples = useMemo(() => {
     return filterFrontCatalogSamples(samples, frontCatalogSource, frontQuery);
@@ -374,10 +393,6 @@ function App() {
   useEffect(() => {
     writeStoredObject(storageKeys.frontFavorites, frontFavoriteIds);
   }, [frontFavoriteIds]);
-
-  useEffect(() => {
-    writeStoredObject(storageKeys.frontLikes, frontLikedIds);
-  }, [frontLikedIds]);
 
   useEffect(() => {
     writeStoredObject(storageKeys.pptRecords, pptRecords);
@@ -488,12 +503,6 @@ function App() {
 
   function toggleFrontFavorite(sample: Sample) {
     setFrontFavoriteIds((current) =>
-      current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
-    );
-  }
-
-  function toggleFrontLike(sample: Sample) {
-    setFrontLikedIds((current) =>
       current.includes(sample.id) ? current.filter((id) => id !== sample.id) : [...current, sample.id]
     );
   }
@@ -610,7 +619,8 @@ function App() {
       ...emptyDraft,
       source: "bulk",
       ownerTeam: team,
-      location: `${team}大货样衣区`,
+      location: getDefaultStorageLocation("bulk", team),
+      rack: bulkRackOptions[0],
       visibilityScope: `${team},设计中心,样衣管理员`,
       notes: "业务组大货样品"
     });
@@ -646,11 +656,16 @@ function App() {
     }
     setBusy("save");
     setNotice("");
+    const payload: SampleDraft = {
+      ...draft,
+      location: draft.location || getDefaultStorageLocation("design"),
+      rack: draft.rack || getRackOptions(draft.location || getDefaultStorageLocation("design"), "design")[0] || ""
+    };
     try {
       if (demoMode) {
-        const saved = draftToDemoSample(draft);
+        const saved = draftToDemoSample(payload);
         setSamples((current) =>
-          draft.id ? current.map((sample) => (sample.id === draft.id ? saved : sample)) : [saved, ...current]
+          payload.id ? current.map((sample) => (sample.id === payload.id ? saved : sample)) : [saved, ...current]
         );
         setSelectedId(saved.id);
         setDraft({ ...emptyDraft });
@@ -658,7 +673,7 @@ function App() {
         setNotice("客户演示版已保存到当前浏览器会话");
         return;
       }
-      const saved = draft.id ? await updateSample(draft.id, draft) : await createSample(draft);
+      const saved = payload.id ? await updateSample(payload.id, payload) : await createSample(payload);
       await reload();
       setSelectedId(saved.id);
       setDraft({ ...emptyDraft });
@@ -682,7 +697,8 @@ function App() {
       ...bulkDraft,
       source: "bulk",
       ownerTeam: bulkDraft.ownerTeam || businessTeams[0],
-      location: bulkDraft.location || `${bulkDraft.ownerTeam || businessTeams[0]}大货样衣区`,
+      location: bulkDraft.location || getDefaultStorageLocation("bulk", bulkDraft.ownerTeam || businessTeams[0]),
+      rack: bulkDraft.rack || bulkRackOptions[0],
       visibilityScope: bulkDraft.visibilityScope || `${bulkDraft.ownerTeam || businessTeams[0]},设计中心,样衣管理员`
     };
     try {
@@ -1058,6 +1074,10 @@ function App() {
               <h1>{titleFor(tab)}</h1>
             </div>
             <div className="top-actions">
+              <button className="assistant-trigger" onClick={() => setShowYunzhiAssistant(true)} type="button">
+                <img alt="问问云知" src="./yunzhi-avatar.png" />
+                问问云知
+              </button>
               <div className="credit-pill">
                 <Coins size={16} />
                 <span>AI 积分剩余</span>
@@ -1106,7 +1126,6 @@ function App() {
             busy={busy}
             frontLogin={frontLogin}
             frontFavoriteIds={frontFavoriteIds}
-            frontLikedIds={frontLikedIds}
             frontCatalogSource={frontCatalogSource}
             frontCatalogCounts={frontCatalogCounts}
             frontQuery={frontQuery}
@@ -1123,6 +1142,7 @@ function App() {
             billingRule={billingRule}
             generateFrontPpt={generateFrontPpt}
             openProfile={() => setShowProfile(true)}
+            openYunzhi={() => setShowYunzhiAssistant(true)}
             reload={reload}
             runFrontVisualSearch={() => runSimilarSearch("")}
             setPortalMode={setPortalMode}
@@ -1134,7 +1154,6 @@ function App() {
             loginFrontDesk={loginFrontDesk}
             submitFrontBorrowRequest={submitFrontBorrowRequest}
             toggleFrontFavorite={toggleFrontFavorite}
-            toggleFrontLike={toggleFrontLike}
             toggleFrontSelect={toggleFrontSelect}
             uploadSearchImage={uploadSearchImage}
           />
@@ -1149,7 +1168,9 @@ function App() {
                 setKindFilter={setKindFilter}
                 setQuery={setQuery}
                 setSelectedId={setSelectedId}
+                setStorageFilter={setStorageFilter}
                 setStatusFilter={setStatusFilter}
+                storageFilter={storageFilter}
                 statusFilter={statusFilter}
                 editSample={editSample}
                 toggleFlag={toggleFlag}
@@ -1176,9 +1197,11 @@ function App() {
                 selected={selected?.source === "bulk" ? selected : undefined}
                 bulkQuery={bulkQuery}
                 bulkTeamFilter={bulkTeamFilter}
+                bulkStorageFilter={bulkStorageFilter}
                 setBulkDraft={setBulkDraft}
                 setBulkQuery={setBulkQuery}
                 setBulkTeamFilter={setBulkTeamFilter}
+                setBulkStorageFilter={setBulkStorageFilter}
                 editBulkSample={editBulkSample}
                 saveBulkDraft={saveBulkDraft}
                 startBulkCreate={startBulkCreate}
@@ -1266,6 +1289,16 @@ function App() {
           requests={borrowRequests}
         />
       )}
+
+      {showYunzhiAssistant && (
+        <YunzhiAssistantDrawer
+          billingRule={billingRule}
+          frontUser={frontUser}
+          onClose={() => setShowYunzhiAssistant(false)}
+          samples={samples}
+          selected={selected}
+        />
+      )}
     </div>
   );
 }
@@ -1278,7 +1311,9 @@ function LibraryView(props: {
   setKindFilter: (value: string) => void;
   setQuery: (value: string) => void;
   setSelectedId: (value: string) => void;
+  setStorageFilter: (value: string) => void;
   setStatusFilter: (value: string) => void;
+  storageFilter: string;
   statusFilter: string;
   editSample: (sample: Sample) => void;
   toggleFlag: (sample: Sample, field: "favorite" | "selected") => Promise<void>;
@@ -1307,6 +1342,14 @@ function LibraryView(props: {
             <option value="physical">实物样衣</option>
             <option value="digital3d">3D 样衣</option>
           </select>
+          <select onChange={(event) => props.setStorageFilter(event.target.value)} value={props.storageFilter}>
+            <option value="all">全部库位</option>
+            {getStorageZones("design").map((zone) => (
+              <option key={zone.location} value={zone.location}>
+                {zone.location}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="sample-list">
@@ -1326,6 +1369,7 @@ function LibraryView(props: {
                 <small>
                   {sample.sku} · {sample.styleNo}
                 </small>
+                <small>{sample.location} · {sample.rack}</small>
                 <div className="tag-row">
                   {formatTags(sample.styleTags).map((tag) => (
                     <span key={tag}>{tag}</span>
@@ -1503,8 +1547,16 @@ function EntryView(props: {
           <Field label="成分" value={props.draft.composition} onChange={(value) => setField("composition", value)} />
           <Field label="供应商" value={props.draft.supplier} onChange={(value) => setField("supplier", value)} />
           <Field label="吊牌价" value={props.draft.retailPrice} onChange={(value) => setField("retailPrice", value)} />
-          <Field label="位置" value={props.draft.location} onChange={(value) => setField("location", value)} />
-          <Field label="货架" value={props.draft.rack} onChange={(value) => setField("rack", value)} />
+          <StorageSelector
+            location={props.draft.location}
+            rack={props.draft.rack}
+            source="design"
+            onLocationChange={(value) => {
+              setField("location", value);
+              setField("rack", getRackOptions(value, "design")[0] || "");
+            }}
+            onRackChange={(value) => setField("rack", value)}
+          />
           <label>
             样衣类型
             <select
@@ -1596,9 +1648,11 @@ function BulkGoodsView(props: {
   selected?: Sample;
   bulkQuery: string;
   bulkTeamFilter: string;
+  bulkStorageFilter: string;
   setBulkDraft: Dispatch<SetStateAction<SampleDraft>>;
   setBulkQuery: (value: string) => void;
   setBulkTeamFilter: (value: string) => void;
+  setBulkStorageFilter: (value: string) => void;
   editBulkSample: (sample: Sample) => void;
   saveBulkDraft: () => Promise<void>;
   startBulkCreate: (team?: string) => void;
@@ -1628,6 +1682,14 @@ function BulkGoodsView(props: {
               <option key={team} value={team}>{team}</option>
             ))}
           </select>
+          <select onChange={(event) => props.setBulkStorageFilter(event.target.value)} value={props.bulkStorageFilter}>
+            <option value="all">全部库位</option>
+            {getStorageZones("bulk").map((zone) => (
+              <option key={zone.location} value={zone.location}>
+                {zone.location}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="bulk-list">
@@ -1645,6 +1707,7 @@ function BulkGoodsView(props: {
                   <span className="status in_stock">{sample.ownerTeam}</span>
                 </div>
                 <small>{sample.sku} · {sample.category}</small>
+                <small>{sample.location} · {sample.rack}</small>
                 <div className="tag-row">
                   {formatTags(sample.styleTags).slice(0, 4).map((tag) => (
                     <span key={tag}>{tag}</span>
@@ -1698,7 +1761,8 @@ function BulkGoodsView(props: {
                 props.setBulkDraft((current) => ({
                   ...current,
                   ownerTeam: team,
-                  location: current.location || `${team}大货样衣区`,
+                  location: getDefaultStorageLocation("bulk", team),
+                  rack: bulkRackOptions[0],
                   visibilityScope: `${team},设计中心,样衣管理员`
                 }));
               }}
@@ -1721,7 +1785,17 @@ function BulkGoodsView(props: {
           <Field label="成分" value={props.bulkDraft.composition} onChange={(value) => setField("composition", value)} />
           <Field label="供应商" value={props.bulkDraft.supplier} onChange={(value) => setField("supplier", value)} />
           <Field label="大货价" value={props.bulkDraft.retailPrice} onChange={(value) => setField("retailPrice", value)} />
-          <Field label="库位" value={props.bulkDraft.location} onChange={(value) => setField("location", value)} />
+          <StorageSelector
+            location={props.bulkDraft.location}
+            rack={props.bulkDraft.rack}
+            source="bulk"
+            ownerTeam={props.bulkDraft.ownerTeam}
+            onLocationChange={(value) => {
+              setField("location", value);
+              setField("rack", getRackOptions(value, "bulk", props.bulkDraft.ownerTeam)[0] || "");
+            }}
+            onRackChange={(value) => setField("rack", value)}
+          />
         </div>
 
         <label>
@@ -1984,7 +2058,8 @@ function BorrowView(props: {
               <div>
                 <strong>{sample.sku}</strong>
                 <span>{sample.name} · {sample.season || sample.category}</span>
-                <small>{sampleStatusText[sample.status]} · {formatRetailPrice(sample)}</small>
+                <small>{sampleStatusText[sample.status]} · {sample.location} · {sample.rack}</small>
+                <small>{formatRetailPrice(sample)}</small>
               </div>
             </button>
           ))}
@@ -2104,7 +2179,6 @@ function FrontDeskPinterestView(props: {
   busy: string;
   frontLogin: { name: string; team: string; phone: string };
   frontFavoriteIds: string[];
-  frontLikedIds: string[];
   frontCatalogSource: FrontCatalogSource;
   frontCatalogCounts: Record<FrontCatalogSource, number>;
   frontQuery: string;
@@ -2120,6 +2194,7 @@ function FrontDeskPinterestView(props: {
   billingRule: BillingRule;
   generateFrontPpt: () => Promise<void>;
   openProfile: () => void;
+  openYunzhi: () => void;
   reload: () => Promise<void>;
   runFrontVisualSearch: () => Promise<void>;
   setPortalMode: (value: PortalMode) => void;
@@ -2131,7 +2206,6 @@ function FrontDeskPinterestView(props: {
   loginFrontDesk: () => void;
   submitFrontBorrowRequest: (target: Sample | Sample[]) => Promise<void>;
   toggleFrontFavorite: (sample: Sample) => void;
-  toggleFrontLike: (sample: Sample) => void;
   toggleFrontSelect: (sample: Sample) => void;
   uploadSearchImage: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
 }) {
@@ -2162,20 +2236,7 @@ function FrontDeskPinterestView(props: {
   const detailSample = frontDetailId ? props.frontSamples.find((sample) => sample.id === frontDetailId) || null : null;
   const detailImages = detailSample ? getSampleViewImages(detailSample) : [];
   const activeDetailImage = detailImages.find((image) => image.id === activeDetailImageId) || detailImages[0];
-  const recommendationSamples = detailSample
-    ? props.frontSamples
-        .filter((sample) => sample.id !== detailSample.id)
-        .map((sample) => {
-          const targetTags = new Set(formatTags(detailSample.styleTags));
-          const tagHits = formatTags(sample.styleTags).filter((tag) => targetTags.has(tag)).length;
-          const categoryHit = sample.category && sample.category === detailSample.category ? 4 : 0;
-          const colorHit = sample.color && sample.color === detailSample.color ? 2 : 0;
-          return { sample, score: tagHits + categoryHit + colorHit };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 18)
-        .map((item) => item.sample)
-    : [];
+  const recommendationSamples = detailSample ? getRecommendedSamples(detailSample, props.frontSamples, 18) : [];
   const currentFavoriteCount = props.frontSamples.filter((sample) => props.frontFavoriteIds.includes(sample.id)).length;
   const currentSelectedCount = props.frontSamples.filter((sample) => props.frontSelectedIds.includes(sample.id)).length;
   const menuItems = [
@@ -2186,7 +2247,7 @@ function FrontDeskPinterestView(props: {
       icon: BadgeCheck,
       count: props.frontSamples.filter((sample) => sample.status === "in_stock").length
     },
-    { id: "favorites" as const, label: "收藏", icon: Bookmark, count: currentFavoriteCount },
+    { id: "favorites" as const, label: "收藏", icon: Heart, count: currentFavoriteCount },
     { id: "selected" as const, label: "已选", icon: CheckSquare, count: currentSelectedCount }
   ];
   const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
@@ -2219,7 +2280,6 @@ function FrontDeskPinterestView(props: {
   const renderPinCard = (sample: Sample, compact = false) => {
     const favorited = props.frontFavoriteIds.includes(sample.id);
     const selected = props.frontSelectedIds.includes(sample.id);
-    const liked = props.frontLikedIds.includes(sample.id);
     return (
       <article
         className={`front-pin-card ${props.selected?.id === sample.id ? "active" : ""} ${compact ? "compact" : ""}`}
@@ -2256,14 +2316,10 @@ function FrontDeskPinterestView(props: {
             <small className={`status ${sample.status}`}>{sampleStatusText[sample.status]}</small>
             <small>{formatMoney(calculateBorrowFee(sample, props.billingRule))}/次</small>
             <small>{sample.color || sample.fabric}</small>
-            <button
-              className={liked ? "front-action active" : "front-action"}
-              onClick={() => props.toggleFrontLike(sample)}
-              type="button"
-            >
-              <ThumbsUp fill={liked ? "currentColor" : "none"} size={14} />
-              {sampleLikeCount(sample, props.frontLikedIds)}
-            </button>
+            <span className={favorited ? "front-like-count active" : "front-like-count"}>
+              <Heart fill={favorited ? "currentColor" : "none"} size={14} />
+              {sampleLikeCount(sample, props.frontFavoriteIds)}
+            </span>
           </div>
         </div>
       </article>
@@ -2405,6 +2461,10 @@ function FrontDeskPinterestView(props: {
             </button>
           </div>
           <div className="front-top-actions">
+            <button className="assistant-trigger compact" onClick={props.openYunzhi} type="button">
+              <img alt="问问云知" src="./yunzhi-avatar.png" />
+              问问云知
+            </button>
             <span className="front-credit-chip">
               <Coins size={15} />
               {props.aiCreditsRemaining}
@@ -2505,14 +2565,10 @@ function FrontDeskPinterestView(props: {
                     <Check size={18} />
                     选择
                   </button>
-                  <button
-                    className={props.frontLikedIds.includes(detailSample.id) ? "front-icon-text active" : "front-icon-text"}
-                    onClick={() => props.toggleFrontLike(detailSample)}
-                    type="button"
-                  >
-                    <ThumbsUp fill={props.frontLikedIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
-                    {sampleLikeCount(detailSample, props.frontLikedIds)}
-                  </button>
+                  <span className={props.frontFavoriteIds.includes(detailSample.id) ? "front-like-count active" : "front-like-count"}>
+                    <Heart fill={props.frontFavoriteIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
+                    {sampleLikeCount(detailSample, props.frontFavoriteIds)}
+                  </span>
                 </div>
 
                 <div>
@@ -2735,7 +2791,6 @@ function FrontDeskView(props: {
   busy: string;
   frontLogin: { name: string; team: string; phone: string };
   frontFavoriteIds: string[];
-  frontLikedIds: string[];
   frontQuery: string;
   frontRequestForm: { purpose: string; dueAt: string; note: string };
   frontSamples: Sample[];
@@ -2751,7 +2806,6 @@ function FrontDeskView(props: {
   loginFrontDesk: () => void;
   submitFrontBorrowRequest: (target: Sample | Sample[]) => Promise<void>;
   toggleFrontFavorite: (sample: Sample) => void;
-  toggleFrontLike: (sample: Sample) => void;
   toggleFrontSelect: (sample: Sample) => void;
 }) {
   const userRequests = props.frontUser
@@ -2855,14 +2909,10 @@ function FrontDeskView(props: {
                     <Heart fill={props.frontFavoriteIds.includes(sample.id) ? "currentColor" : "none"} size={15} />
                     收藏
                   </button>
-                  <button
-                    className={props.frontLikedIds.includes(sample.id) ? "front-action active" : "front-action"}
-                    onClick={() => props.toggleFrontLike(sample)}
-                    type="button"
-                  >
-                    <ThumbsUp fill={props.frontLikedIds.includes(sample.id) ? "currentColor" : "none"} size={15} />
-                    {sampleLikeCount(sample, props.frontLikedIds)}
-                  </button>
+                  <span className={props.frontFavoriteIds.includes(sample.id) ? "front-like-count active" : "front-like-count"}>
+                    <Heart fill={props.frontFavoriteIds.includes(sample.id) ? "currentColor" : "none"} size={15} />
+                    {sampleLikeCount(sample, props.frontFavoriteIds)}
+                  </span>
                 </div>
               </div>
             </article>
@@ -3075,6 +3125,92 @@ function ProfileDrawer(props: {
   );
 }
 
+function YunzhiAssistantDrawer(props: {
+  billingRule: BillingRule;
+  frontUser: FrontUser | null;
+  onClose: () => void;
+  samples: Sample[];
+  selected?: Sample;
+}) {
+  const [query, setQuery] = useState("");
+  const [messages, setMessages] = useState<YunzhiMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "你好，我是云知。可以问我在库样衣、库位架杆、相似款、报价规则、流行趋势、汇率换算和款式设计建议。"
+    }
+  ]);
+  const quickQuestions = ["查在库风衣", "当前款报价", "今年流行趋势", "美元汇率换算", "按库位找样衣"];
+
+  const ask = (text: string) => {
+    const value = text.trim();
+    if (!value) {
+      return;
+    }
+    const userMessage: YunzhiMessage = { id: uid(), role: "user", content: value };
+    const assistantMessage: YunzhiMessage = {
+      id: uid(),
+      role: "assistant",
+      content: buildYunzhiAnswer(value, props.samples, props.selected, props.billingRule)
+    };
+    setMessages((current) => [...current, userMessage, assistantMessage]);
+    setQuery("");
+  };
+
+  return (
+    <div className="profile-backdrop" role="presentation">
+      <aside className="panel profile-drawer yunzhi-drawer" role="dialog" aria-label="问问云知">
+        <div className="profile-head yunzhi-head">
+          <img alt="问问云知" src="./yunzhi-avatar.png" />
+          <div>
+            <p className="eyebrow">AI 小助手</p>
+            <h2>问问云知</h2>
+            <span>{props.frontUser ? `${props.frontUser.team} · ${props.frontUser.name}` : "样衣、趋势、汇率、报价一站查询"}</span>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button">
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="yunzhi-quick">
+          {quickQuestions.map((question) => (
+            <button key={question} onClick={() => ask(question)} type="button">
+              {question}
+            </button>
+          ))}
+        </div>
+
+        <div className="yunzhi-chat">
+          {messages.map((message) => (
+            <div className={`yunzhi-message ${message.role}`} key={message.id}>
+              <span>{message.role === "assistant" ? "云知" : "我"}</span>
+              <p>{message.content}</p>
+            </div>
+          ))}
+        </div>
+
+        <form
+          className="yunzhi-input"
+          onSubmit={(event) => {
+            event.preventDefault();
+            ask(query);
+          }}
+        >
+          <input
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="例如：找几件在库风衣，或者帮我看当前款怎么报价"
+            value={query}
+          />
+          <button type="submit">
+            <Send size={16} />
+          </button>
+        </form>
+      </aside>
+    </div>
+  );
+}
+
 function Metric(props: { icon: LucideIcon; label: string; value: number }) {
   const Icon = props.icon;
   return (
@@ -3101,6 +3237,44 @@ function Field(props: { label: string; value: string; onChange: (value: string) 
       {props.label}
       <input onChange={(event) => props.onChange(event.target.value)} value={props.value || ""} />
     </label>
+  );
+}
+
+function StorageSelector(props: {
+  location: string;
+  rack: string;
+  source: Sample["source"];
+  ownerTeam?: string;
+  onLocationChange: (value: string) => void;
+  onRackChange: (value: string) => void;
+}) {
+  const zones = getStorageZones(props.source, props.ownerTeam);
+  const zoneOptions = includeCurrentOption(zones.map((zone) => zone.location), props.location);
+  const rackOptions = includeCurrentOption(getRackOptions(props.location, props.source, props.ownerTeam), props.rack);
+
+  return (
+    <>
+      <label>
+        库位
+        <select onChange={(event) => props.onLocationChange(event.target.value)} value={props.location}>
+          {zoneOptions.map((location) => (
+            <option key={location} value={location}>
+              {location}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        架杆
+        <select onChange={(event) => props.onRackChange(event.target.value)} value={props.rack}>
+          {rackOptions.map((rack) => (
+            <option key={rack} value={rack}>
+              {rack}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
   );
 }
 
@@ -3302,7 +3476,9 @@ function getDamageCandidates(samples: Sample[], query: string) {
           sample.englishName,
           sample.category,
           sample.season,
-          sample.ownerTeam
+          sample.ownerTeam,
+          sample.location,
+          sample.rack
         ]
           .join(" ")
           .toLowerCase()
@@ -3324,9 +3500,33 @@ function damageCandidateScore(sample: Sample) {
   return ageScore + statusScore + historyScore;
 }
 
-function sampleLikeCount(sample: Sample, likedIds: string[]) {
+function getStorageZones(source: Sample["source"], ownerTeam?: string) {
+  if (source === "bulk") {
+    const preferredTeams = ownerTeam ? [ownerTeam, ...businessTeams.filter((team) => team !== ownerTeam)] : businessTeams;
+    return preferredTeams.map((team) => ({
+      location: `${team}大货样衣区`,
+      racks: bulkRackOptions
+    }));
+  }
+  return designStorageZones;
+}
+
+function getDefaultStorageLocation(source: Sample["source"], ownerTeam?: string) {
+  return getStorageZones(source, ownerTeam)[0]?.location || "";
+}
+
+function getRackOptions(location: string, source: Sample["source"], ownerTeam?: string) {
+  const zones = getStorageZones(source, ownerTeam);
+  return zones.find((zone) => zone.location === location)?.racks || zones[0]?.racks || [];
+}
+
+function includeCurrentOption(options: string[], current: string) {
+  return current && !options.includes(current) ? [current, ...options] : options;
+}
+
+function sampleLikeCount(sample: Sample, favoriteIds: string[]) {
   const seed = Array.from(sample.sku || sample.id).reduce((total, char) => total + char.charCodeAt(0), 0);
-  return 18 + (seed % 42) + (likedIds.includes(sample.id) ? 1 : 0);
+  return 18 + (seed % 42) + (favoriteIds.includes(sample.id) ? 1 : 0);
 }
 
 async function createRecommendationPpt(samples: Sample[], user: FrontUser, fileName: string) {
@@ -3454,6 +3654,107 @@ async function createRecommendationPpt(samples: Sample[], user: FrontUser, fileN
   }
 
   await pptx.writeFile({ fileName });
+}
+
+function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | undefined, billingRule: BillingRule) {
+  const text = query.toLowerCase();
+  const inStockSamples = samples.filter((sample) => sample.status === "in_stock");
+  const keywordMatches = findSampleMatches(query, samples);
+
+  if (text.includes("汇率") || text.includes("美元") || text.includes("usd") || text.includes("eur")) {
+    return [
+      "当前演示版提供报价口径参考，不直接作为财务结算汇率。",
+      "可先按 USD/CNY 7.20、EUR/CNY 7.78 做内部测算；正式给客户前建议接入实时汇率接口。",
+      selected ? `当前款 ${selected.sku} 吊牌价 ${formatRetailPrice(selected)}，借样费 ${formatMoney(calculateBorrowFee(selected, billingRule))}/次。` : ""
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  if (text.includes("报价") || text.includes("价格") || text.includes("费用")) {
+    const sample = keywordMatches[0] || selected;
+    if (!sample) {
+      return `当前收费规则：基础借样费 ${formatMoney(billingRule.baseBorrowFee)}，按吊牌价 ${Math.round(
+        billingRule.borrowRate * 100
+      )}% 计费，最低 ${formatMoney(billingRule.minBorrowFee)}/次。`;
+    }
+    return `${sample.sku} ${sample.name}\n吊牌价：${formatRetailPrice(sample)}\n借样费：${formatMoney(
+      calculateBorrowFee(sample, billingRule)
+    )}/次\n库位：${sample.location} · ${sample.rack}`;
+  }
+
+  if (text.includes("库位") || text.includes("架杆") || text.includes("归还") || text.includes("在库")) {
+    const matches = (keywordMatches.length ? keywordMatches : inStockSamples).filter((sample) => sample.status === "in_stock");
+    return matches.length
+      ? `找到 ${matches.length} 件在库样衣：\n${matches
+          .slice(0, 6)
+          .map((sample) => `${sample.sku} ${sample.name}｜${sample.location} · ${sample.rack}`)
+          .join("\n")}`
+      : "没有找到符合条件的在库样衣，可以换一个款号、品类或库位再问。";
+  }
+
+  if (text.includes("趋势") || text.includes("流行")) {
+    return [
+      "近期可重点关注：轻户外防晒、通勤轻西装、低饱和绿色/灰蓝、肌理针织、套装化搭配。",
+      "给客户推款时建议按“外套主推 + 衬衫/针织内搭 + 下装补充”组合，减少单品跳跃。",
+      `当前库里在库样衣 ${inStockSamples.length} 件，可优先从同品类和同色系中挑。`
+    ].join("\n");
+  }
+
+  if (text.includes("设计") || text.includes("款式") || text.includes("开发")) {
+    const sample = keywordMatches[0] || selected;
+    if (!sample) {
+      return "可以给我一个品类或款号，我会结合现有样衣给出廓形、面料、颜色和工艺方向。";
+    }
+    return `基于 ${sample.sku} ${sample.name}：\n1. 保留 ${sample.category} 的核心廓形，做一版更轻量的${sample.fabric || "面料"}。\n2. 颜色可扩展到雾蓝、灰绿、米白，便于成组推款。\n3. 工艺上建议强化口袋、门襟或领型差异，形成同系列不同价位。`;
+  }
+
+  if (keywordMatches.length) {
+    return `我找到了这些相关样衣：\n${keywordMatches
+      .slice(0, 6)
+      .map(
+        (sample) =>
+          `${sample.sku} ${sample.name}｜${sample.category}｜${sampleStatusText[sample.status]}｜${sample.location} · ${sample.rack}`
+      )
+      .join("\n")}`;
+  }
+
+  return "可以问我：在库样衣、某个款号的库位、当前款报价、趋势方向、汇率测算，或者让云知根据某个款式给开发建议。";
+}
+
+function findSampleMatches(query: string, samples: Sample[]) {
+  const terms = query
+    .toLowerCase()
+    .split(/[\s,，。/]+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 1 && !["查询", "看看", "帮我", "样衣", "在库"].includes(term));
+
+  if (!terms.length) {
+    return [];
+  }
+
+  return samples
+    .map((sample) => {
+      const haystack = [
+        sample.sku,
+        sample.styleNo,
+        sample.name,
+        sample.englishName,
+        sample.category,
+        sample.color,
+        sample.fabric,
+        sample.location,
+        sample.rack,
+        sample.ownerTeam,
+        sample.styleTags.join(" ")
+      ]
+        .join(" ")
+        .toLowerCase();
+      return { sample, score: terms.filter((term) => haystack.includes(term)).length };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.sample);
 }
 
 async function imageToDataUrl(url: string) {
