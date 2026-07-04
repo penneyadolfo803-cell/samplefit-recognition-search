@@ -412,6 +412,12 @@ button b {
 .history-panel,
 .ai-search-panel,
 .results-panel,
+.billing-control-panel,
+.billing-summary-panel,
+.billing-detail-panel,
+.analysis-hero-panel,
+.ranked-panel,
+.prep-panel,
 .front-hero-panel,
 .front-login-card,
 .front-catalog-panel,
@@ -759,6 +765,175 @@ textarea:focus {
 .form-panel {
   display: grid;
   gap: 14px;
+}
+
+.billing-layout,
+.analysis-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.billing-layout {
+  grid-template-columns: minmax(340px, 0.75fr) minmax(0, 1.25fr);
+  align-items: start;
+}
+
+.billing-control-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.billing-kpis {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.money-metric strong {
+  font-size: clamp(18px, 1.7vw, 25px);
+}
+
+.billing-rule-note {
+  border: var(--glass-border);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgb(255 255 255 / 0.42);
+  display: grid;
+  gap: 5px;
+}
+
+.billing-rule-note span,
+.billing-rule-note small,
+.billing-detail-list span,
+.billing-detail-list small,
+.prep-list span,
+.prep-list small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.billing-table,
+.billing-detail-list,
+.prep-list,
+.ranked-list {
+  display: grid;
+  gap: 8px;
+}
+
+.billing-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 0.48);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgb(255 255 255 / 0.38);
+}
+
+.billing-row.head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  background: rgb(255 255 255 / 0.24);
+}
+
+.billing-detail-list div,
+.prep-list div {
+  position: relative;
+  border: 1px solid rgb(255 255 255 / 0.48);
+  border-radius: 8px;
+  padding: 11px 92px 11px 12px;
+  background: rgb(255 255 255 / 0.38);
+  display: grid;
+  gap: 4px;
+}
+
+.billing-detail-list b {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  color: #0d4d93;
+}
+
+.analysis-layout {
+  grid-template-columns: minmax(320px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
+}
+
+.analysis-hero-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.analysis-layout > .billing-kpis,
+.analysis-grid,
+.prep-panel {
+  grid-column: 1 / -1;
+}
+
+.analysis-insights {
+  display: grid;
+  gap: 8px;
+}
+
+.analysis-insights div {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border: var(--glass-border);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgb(255 255 255 / 0.42);
+  color: #173248;
+}
+
+.analysis-insights svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analysis-grid.wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ranked-panel h2,
+.prep-panel h2 {
+  margin: 0 0 12px;
+}
+
+.ranked-list > div {
+  display: grid;
+  gap: 7px;
+}
+
+.ranked-list > div > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.ranked-list span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ranked-list i {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f74c9, #7fc7ff);
+  box-shadow: 0 5px 14px rgb(31 116 201 / 0.18);
 }
 
 .bulk-form-panel {
@@ -2121,9 +2296,17 @@ button.danger:disabled {
   .bulk-layout,
   .borrow-layout,
   .ai-layout,
+  .billing-layout,
+  .analysis-layout,
   .front-login-layout,
   .front-desk-layout {
     grid-template-columns: 1fr;
+  }
+
+  .billing-kpis,
+  .analysis-grid,
+  .analysis-grid.wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sample-list,
@@ -2139,7 +2322,7 @@ button.danger:disabled {
     bottom: 12px;
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     background:
       linear-gradient(145deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.1)),
@@ -2233,8 +2416,24 @@ button.danger:disabled {
   .metrics,
   .info-grid,
   .form-grid,
-  .quote-controls {
+  .quote-controls,
+  .billing-kpis,
+  .analysis-grid,
+  .analysis-grid.wide {
     grid-template-columns: 1fr;
+  }
+
+  .billing-row {
+    grid-template-columns: 1fr 0.5fr;
+  }
+
+  .billing-detail-list div,
+  .prep-list div {
+    padding-right: 12px;
+  }
+
+  .billing-detail-list b {
+    position: static;
   }
 
   .sample-card {

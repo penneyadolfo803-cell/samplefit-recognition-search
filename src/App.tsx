@@ -66,6 +66,16 @@ import {
 } from "./lib/demo";
 import { businessTeams } from "./lib/bulk-fixtures";
 import {
+  createBorrowAnalytics,
+  createBorrowBillingRows,
+  filterBillingRows,
+  summarizeBillingRows,
+  type BillingPeriod,
+  type BillingSource,
+  type BorrowBillingRow,
+  type RankedMetric
+} from "./lib/billing-analytics";
+import {
   filterFrontCatalogSamples,
   getFrontCatalogCounts,
   getFrontCatalogSamples,
@@ -85,7 +95,7 @@ import type {
   SimilarResult
 } from "./lib/types";
 
-type TabId = "library" | "entry" | "bulk" | "borrow" | "ai";
+type TabId = "library" | "entry" | "bulk" | "borrow" | "billing" | "analytics" | "ai";
 type PortalMode = "admin" | "front";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
@@ -182,6 +192,8 @@ const tabs = [
   { id: "entry" as const, label: "录入", icon: PackagePlus },
   { id: "bulk" as const, label: "大货", icon: Boxes },
   { id: "borrow" as const, label: "借还", icon: ClipboardList },
+  { id: "billing" as const, label: "账单", icon: Banknote },
+  { id: "analytics" as const, label: "分析", icon: ReceiptText },
   { id: "ai" as const, label: "识别检索", icon: Camera }
 ];
 
@@ -316,6 +328,10 @@ function App() {
   const damageCandidates = useMemo(
     () => getDamageCandidates(samples, damageQuery),
     [samples, damageQuery]
+  );
+  const borrowBillingRows = useMemo(
+    () => createBorrowBillingRows(samples, borrowRequests, (sample) => calculateBorrowFee(sample, billingRule)),
+    [samples, borrowRequests, billingRule]
   );
 
   const filteredSamples = useMemo(() => {
@@ -1230,6 +1246,20 @@ function App() {
               />
             )}
 
+            {tab === "billing" && (
+              <BillingPullView
+                billingRows={borrowBillingRows}
+                billingRule={billingRule}
+              />
+            )}
+
+            {tab === "analytics" && (
+              <DataAnalysisView
+                billingRows={borrowBillingRows}
+                samples={samples}
+              />
+            )}
+
             {tab === "ai" && (
               <AiView
                 busy={busy}
@@ -2062,6 +2092,217 @@ function BorrowView(props: {
                 <small>{formatRetailPrice(sample)}</small>
               </div>
             </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BillingPullView(props: {
+  billingRows: BorrowBillingRow[];
+  billingRule: BillingRule;
+}) {
+  const [period, setPeriod] = useState<BillingPeriod>("month");
+  const [source, setSource] = useState<BillingSource>("all");
+  const [pulledAt, setPulledAt] = useState(new Date().toISOString());
+  const rows = useMemo(() => filterBillingRows(props.billingRows, source), [props.billingRows, source]);
+  const buckets = useMemo(() => summarizeBillingRows(rows, period), [rows, period]);
+  const totalFee = rows.reduce((total, row) => total + row.fee, 0);
+  const latestBucket = buckets[0];
+
+  return (
+    <section className="billing-layout">
+      <div className="panel billing-control-panel">
+        <div className="form-toolbar">
+          <div>
+            <p className="eyebrow">账单拉取</p>
+            <h2>样衣借用费用</h2>
+            <span>按年 / 月 / 周快速拉取前台申请和后台实际借出费用。</span>
+          </div>
+          <Banknote size={24} />
+        </div>
+
+        <div className="form-grid two">
+          <label>
+            汇总周期
+            <select onChange={(event) => setPeriod(event.target.value as BillingPeriod)} value={period}>
+              <option value="year">按年</option>
+              <option value="month">按月</option>
+              <option value="week">按周</option>
+            </select>
+          </label>
+          <label>
+            账单来源
+            <select onChange={(event) => setSource(event.target.value as BillingSource)} value={source}>
+              <option value="all">全部账单</option>
+              <option value="request">前台借样申请</option>
+              <option value="borrow">后台实际借出</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="button-row">
+          <button onClick={() => setPulledAt(new Date().toISOString())} type="button">
+            <ReceiptText size={16} />
+            拉取账单
+          </button>
+          <button className="ghost" disabled={!rows.length} onClick={() => downloadBillingCsv(rows)} type="button">
+            <FileText size={16} />
+            导出明细
+          </button>
+        </div>
+
+        <div className="billing-rule-note">
+          <strong>当前计费规则</strong>
+          <span>
+            基础 {formatMoney(props.billingRule.baseBorrowFee)} + 吊牌价 {Math.round(props.billingRule.borrowRate * 100)}%，最低{" "}
+            {formatMoney(props.billingRule.minBorrowFee)}/次
+          </span>
+          <small>最近拉取：{formatDate(pulledAt)}</small>
+        </div>
+      </div>
+
+      <div className="billing-kpis">
+        <Metric icon={ReceiptText} label="账单笔数" value={rows.length} />
+        <div className="metric money-metric">
+          <Banknote size={18} />
+          <span>借样费用</span>
+          <strong>{formatMoney(totalFee)}</strong>
+        </div>
+        <div className="metric money-metric">
+          <ClipboardList size={18} />
+          <span>平均单次</span>
+          <strong>{formatMoney(rows.length ? totalFee / rows.length : 0)}</strong>
+        </div>
+        <div className="metric money-metric">
+          <Database size={18} />
+          <span>{latestBucket?.label || "最近周期"}</span>
+          <strong>{latestBucket ? formatMoney(latestBucket.totalFee) : formatMoney(0)}</strong>
+        </div>
+      </div>
+
+      <div className="panel billing-summary-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>周期汇总</h2>
+            <p>用于每年、每月、每周快速对账。</p>
+          </div>
+        </div>
+        <div className="billing-table">
+          <div className="billing-row head">
+            <span>周期</span>
+            <span>笔数</span>
+            <span>总费用</span>
+            <span>平均费用</span>
+          </div>
+          {buckets.length ? (
+            buckets.map((bucket) => (
+              <div className="billing-row" key={bucket.key}>
+                <strong>{bucket.label}</strong>
+                <span>{bucket.count}</span>
+                <span>{formatMoney(bucket.totalFee)}</span>
+                <span>{formatMoney(bucket.averageFee)}</span>
+              </div>
+            ))
+          ) : (
+            <EmptyState />
+          )}
+        </div>
+      </div>
+
+      <div className="panel billing-detail-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>账单明细</h2>
+            <p>保留业务员、业务组、款号、品类、风格、库位，方便追溯客户需求。</p>
+          </div>
+        </div>
+        <div className="billing-detail-list">
+          {rows.slice(0, 18).map((row) => (
+            <div key={row.id}>
+              <strong>{row.sampleSku} · {row.sampleName}</strong>
+              <span>{row.borrower} · {row.team} · {row.category || "未维护品类"}</span>
+              <small>{formatDate(row.date)} · {billingSourceText(row.source)} · {row.location} {row.rack}</small>
+              <b>{formatMoney(row.fee)}</b>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DataAnalysisView(props: {
+  billingRows: BorrowBillingRow[];
+  samples: Sample[];
+}) {
+  const [source, setSource] = useState<BillingSource>("all");
+  const rows = useMemo(() => filterBillingRows(props.billingRows, source), [props.billingRows, source]);
+  const analytics = useMemo(() => createBorrowAnalytics(rows), [rows]);
+  const inStockCount = props.samples.filter((sample) => sample.status === "in_stock").length;
+
+  return (
+    <section className="analysis-layout">
+      <div className="panel analysis-hero-panel">
+        <div className="form-toolbar">
+          <div>
+            <p className="eyebrow">数据分析</p>
+            <h2>客户借样需求画像</h2>
+            <span>分析业务员、业务组、品类、风格和时间趋势，帮助设计部提前备样。</span>
+          </div>
+          <ReceiptText size={24} />
+        </div>
+        <label>
+          分析来源
+          <select onChange={(event) => setSource(event.target.value as BillingSource)} value={source}>
+            <option value="all">全部借样数据</option>
+            <option value="request">前台借样申请</option>
+            <option value="borrow">后台实际借出</option>
+          </select>
+        </label>
+        <div className="analysis-insights">
+          {analytics.insights.map((item) => (
+            <div key={item}>
+              <Sparkles size={16} />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="billing-kpis">
+        <Metric icon={ClipboardList} label="借样次数" value={analytics.totalCount} />
+        <div className="metric money-metric">
+          <Banknote size={18} />
+          <span>借样费用</span>
+          <strong>{formatMoney(analytics.totalFee)}</strong>
+        </div>
+        <Metric icon={BadgeCheck} label="当前在库" value={inStockCount} />
+        <Metric icon={Shirt} label="样衣总数" value={props.samples.length} />
+      </div>
+
+      <div className="analysis-grid">
+        <RankedPanel title="业务员排行" rows={analytics.topBorrowers} />
+        <RankedPanel title="业务组排行" rows={analytics.topTeams} />
+        <RankedPanel title="品类借用最多" rows={analytics.topCategories} />
+        <RankedPanel title="风格借用最多" rows={analytics.topStyles} />
+      </div>
+
+      <div className="analysis-grid wide">
+        <RankedPanel title="月度趋势" rows={analytics.monthlyTrend} />
+        <RankedPanel title="周度趋势" rows={analytics.weeklyTrend} />
+      </div>
+
+      <div className="panel prep-panel">
+        <h2>第二年提前备样建议</h2>
+        <div className="prep-list">
+          {analytics.topCategories.slice(0, 4).map((item) => (
+            <div key={item.label}>
+              <strong>{item.label}</strong>
+              <span>历史借用 {item.count} 次，费用 {formatMoney(item.fee)}</span>
+              <small>建议：下一季提前准备 3-5 件同品类、同风格、不同价位段样衣。</small>
+            </div>
           ))}
         </div>
       </div>
@@ -3222,6 +3463,30 @@ function Metric(props: { icon: LucideIcon; label: string; value: number }) {
   );
 }
 
+function RankedPanel(props: { title: string; rows: RankedMetric[] }) {
+  const maxFee = Math.max(...props.rows.map((row) => row.fee), 1);
+  return (
+    <div className="panel ranked-panel">
+      <h2>{props.title}</h2>
+      <div className="ranked-list">
+        {props.rows.length ? (
+          props.rows.map((row) => (
+            <div key={row.label}>
+              <div>
+                <strong>{row.label}</strong>
+                <span>{row.count} 次 · {formatMoney(row.fee)}</span>
+              </div>
+              <i style={{ width: `${Math.max(8, (row.fee / maxFee) * 100)}%` }} />
+            </div>
+          ))
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Info(props: { label: string; value: string }) {
   return (
     <div className="info">
@@ -3306,6 +3571,8 @@ function titleFor(tab: TabId) {
     entry: "样衣录入与维护",
     bulk: "业务组大货录入",
     borrow: "样衣借还",
+    billing: "账单拉取",
+    analytics: "数据分析",
     ai: "识别检索与自动报价"
   }[tab];
 }
@@ -3424,6 +3691,43 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "CNY"
   }).format(value);
+}
+
+function billingSourceText(source: BorrowBillingRow["source"]) {
+  return source === "request" ? "前台申请" : "后台借出";
+}
+
+function downloadBillingCsv(rows: BorrowBillingRow[]) {
+  const headers = ["日期", "来源", "业务员", "业务组", "款号", "名称", "品类", "风格", "库位", "架杆", "费用", "用途"];
+  const lines = [
+    headers,
+    ...rows.map((row) => [
+      row.date,
+      billingSourceText(row.source),
+      row.borrower,
+      row.team,
+      row.sampleSku,
+      row.sampleName,
+      row.category,
+      row.styleTags.join("/"),
+      row.location,
+      row.rack,
+      String(row.fee),
+      row.purpose
+    ])
+  ].map((line) => line.map(escapeCsvCell).join(","));
+  const blob = new Blob([`\ufeff${lines.join("\n")}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `样衣借用账单-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function escapeCsvCell(value: string) {
+  const text = String(value || "");
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function parseMoneyValue(value: string | number | undefined) {
