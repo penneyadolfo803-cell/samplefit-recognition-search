@@ -30,6 +30,14 @@ export interface BillingBucket {
   rows: BorrowBillingRow[];
 }
 
+export interface BillingTeamBucket {
+  team: string;
+  count: number;
+  totalFee: number;
+  averageFee: number;
+  latestDate: string;
+}
+
 export interface RankedMetric {
   label: string;
   count: number;
@@ -123,6 +131,28 @@ export function summarizeBillingRows(rows: BorrowBillingRow[], period: BillingPe
         rows: bucketRows
       };
     });
+}
+
+export function summarizeBillingRowsByTeam(rows: BorrowBillingRow[]): BillingTeamBucket[] {
+  const buckets = new Map<string, BorrowBillingRow[]>();
+  for (const row of rows) {
+    const team = row.team || "未填写业务组";
+    buckets.set(team, [...(buckets.get(team) || []), row]);
+  }
+
+  return [...buckets.entries()]
+    .map(([team, bucketRows]) => {
+      const totalFee = sum(bucketRows.map((row) => row.fee));
+      const sortedDates = bucketRows.map((row) => row.date).sort();
+      return {
+        team,
+        count: bucketRows.length,
+        totalFee,
+        averageFee: bucketRows.length ? totalFee / bucketRows.length : 0,
+        latestDate: sortedDates[sortedDates.length - 1] || ""
+      };
+    })
+    .sort((a, b) => b.totalFee - a.totalFee);
 }
 
 export function createBorrowAnalytics(rows: BorrowBillingRow[]): BorrowAnalytics {

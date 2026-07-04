@@ -70,6 +70,7 @@ import {
   createBorrowBillingRows,
   filterBillingRows,
   summarizeBillingRows,
+  summarizeBillingRowsByTeam,
   type BillingPeriod,
   type BillingSource,
   type BorrowBillingRow,
@@ -2105,11 +2106,27 @@ function BillingPullView(props: {
 }) {
   const [period, setPeriod] = useState<BillingPeriod>("month");
   const [source, setSource] = useState<BillingSource>("all");
+  const [teamFilter, setTeamFilter] = useState("all");
   const [pulledAt, setPulledAt] = useState(new Date().toISOString());
-  const rows = useMemo(() => filterBillingRows(props.billingRows, source), [props.billingRows, source]);
+  const sourceRows = useMemo(() => filterBillingRows(props.billingRows, source), [props.billingRows, source]);
+  const teamOptions = useMemo(
+    () => [...new Set(sourceRows.map((row) => row.team || "未填写业务组"))].sort((a, b) => a.localeCompare(b, "zh-CN")),
+    [sourceRows]
+  );
+  const rows = useMemo(
+    () => sourceRows.filter((row) => teamFilter === "all" || (row.team || "未填写业务组") === teamFilter),
+    [sourceRows, teamFilter]
+  );
   const buckets = useMemo(() => summarizeBillingRows(rows, period), [rows, period]);
+  const teamBuckets = useMemo(() => summarizeBillingRowsByTeam(sourceRows), [sourceRows]);
   const totalFee = rows.reduce((total, row) => total + row.fee, 0);
   const latestBucket = buckets[0];
+
+  useEffect(() => {
+    if (teamFilter !== "all" && !teamOptions.includes(teamFilter)) {
+      setTeamFilter("all");
+    }
+  }, [teamFilter, teamOptions]);
 
   return (
     <section className="billing-layout">
@@ -2138,6 +2155,17 @@ function BillingPullView(props: {
               <option value="all">全部账单</option>
               <option value="request">前台借样申请</option>
               <option value="borrow">后台实际借出</option>
+            </select>
+          </label>
+          <label>
+            业务组
+            <select onChange={(event) => setTeamFilter(event.target.value)} value={teamFilter}>
+              <option value="all">全部业务组</option>
+              {teamOptions.map((team) => (
+                <option key={team} value={team}>
+                  {team}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -2179,6 +2207,43 @@ function BillingPullView(props: {
           <Database size={18} />
           <span>{latestBucket?.label || "最近周期"}</span>
           <strong>{latestBucket ? formatMoney(latestBucket.totalFee) : formatMoney(0)}</strong>
+        </div>
+      </div>
+
+      <div className="panel billing-team-panel">
+        <div className="form-toolbar">
+          <div>
+            <h2>业务组费用汇总</h2>
+            <p>按业务组拉取借样账单，用于向各业务组结算收费。</p>
+          </div>
+          <span className="billing-current-team">当前：{teamFilter === "all" ? "全部业务组" : teamFilter}</span>
+        </div>
+        <div className="billing-table">
+          <div className="billing-row team head">
+            <span>业务组</span>
+            <span>笔数</span>
+            <span>总费用</span>
+            <span>平均费用</span>
+            <span>最近借样</span>
+          </div>
+          {teamBuckets.length ? (
+            teamBuckets.map((bucket) => (
+              <button
+                className={`billing-row team${teamFilter === bucket.team ? " active" : ""}`}
+                key={bucket.team}
+                onClick={() => setTeamFilter(bucket.team)}
+                type="button"
+              >
+                <strong>{bucket.team}</strong>
+                <span>{bucket.count}</span>
+                <span>{formatMoney(bucket.totalFee)}</span>
+                <span>{formatMoney(bucket.averageFee)}</span>
+                <span>{bucket.latestDate ? formatDate(bucket.latestDate) : "-"}</span>
+              </button>
+            ))
+          ) : (
+            <EmptyState />
+          )}
         </div>
       </div>
 
