@@ -1682,11 +1682,18 @@ button.danger:disabled {
   max-height: none;
   overflow: hidden;
   display: grid;
-  place-items: center;
+  gap: 10px;
   padding: clamp(8px, 1vw, 16px);
 }
 
-.front-detail-image img {
+.front-detail-image-stage {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+
+.front-detail-image-stage > img {
   width: auto;
   height: auto;
   max-width: 100%;
@@ -1695,6 +1702,53 @@ button.danger:disabled {
   display: block;
   background: rgb(255 255 255 / 0.44);
   border-radius: 7px;
+}
+
+.front-detail-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  width: 100%;
+  padding: 2px;
+}
+
+.front-detail-thumbs button {
+  min-width: 78px;
+  border: var(--glass-border);
+  border-radius: 8px;
+  padding: 5px;
+  background: rgb(255 255 255 / 0.42);
+  color: #20384a;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  box-shadow: none;
+}
+
+.front-detail-thumbs button.active {
+  border-color: rgb(62 128 190 / 0.55);
+  background: rgb(255 255 255 / 0.72);
+}
+
+.front-detail-thumbs img {
+  width: 64px;
+  height: 78px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgb(255 255 255 / 0.56);
+}
+
+.front-detail-thumbs span {
+  color: #20384a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.front-detail-thumbs.single {
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .front-zoom-button {
@@ -2014,7 +2068,7 @@ button.danger:disabled {
     height: auto;
   }
 
-  .front-detail-image img {
+  .front-detail-image-stage > img {
     max-height: min(68vh, 620px);
   }
 

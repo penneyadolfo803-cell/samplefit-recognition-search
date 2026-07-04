@@ -104,6 +104,11 @@ type FeeBill = {
   createdAt: string;
   status: string;
 };
+type SampleViewImage = {
+  id: string;
+  label: string;
+  url: string;
+};
 type BillingRule = {
   baseBorrowFee: number;
   borrowRate: number;
@@ -2135,7 +2140,8 @@ function FrontDeskPinterestView(props: {
   const [menuCollapsed, setMenuCollapsed] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
-  const [zoomSample, setZoomSample] = useState<Sample | null>(null);
+  const [activeDetailImageId, setActiveDetailImageId] = useState("front");
+  const [zoomImage, setZoomImage] = useState<{ sample: Sample; image: SampleViewImage } | null>(null);
   const catalogOptions: Array<{ id: FrontCatalogSource; label: string; icon: LucideIcon; count: number }> = [
     { id: "all", label: "全部样衣", icon: Home, count: props.frontCatalogCounts.all },
     { id: "design", label: "设计样衣", icon: Shirt, count: props.frontCatalogCounts.design },
@@ -2154,6 +2160,8 @@ function FrontDeskPinterestView(props: {
     return true;
   });
   const detailSample = frontDetailId ? props.frontSamples.find((sample) => sample.id === frontDetailId) || null : null;
+  const detailImages = detailSample ? getSampleViewImages(detailSample) : [];
+  const activeDetailImage = detailImages.find((image) => image.id === activeDetailImageId) || detailImages[0];
   const recommendationSamples = detailSample
     ? props.frontSamples
         .filter((sample) => sample.id !== detailSample.id)
@@ -2192,6 +2200,8 @@ function FrontDeskPinterestView(props: {
   const openSample = (sample: Sample) => {
     props.setSelectedId(sample.id);
     setFrontDetailId(sample.id);
+    setActiveDetailImageId("front");
+    setZoomImage(null);
   };
   const openVisualSearch = () => {
     setVisualSearchHasRun(false);
@@ -2444,15 +2454,37 @@ function FrontDeskPinterestView(props: {
 
             <div className="front-detail-hero">
               <div className="front-detail-image">
-                <img alt={detailSample.name} src={detailSample.enhancedImageUrl || detailSample.imageUrl} />
-                <button
-                  aria-label="放大图片"
-                  className="front-zoom-button"
-                  onClick={() => setZoomSample(detailSample)}
-                  type="button"
-                >
-                  <Expand size={18} />
-                </button>
+                <div className="front-detail-image-stage">
+                  {activeDetailImage && <img alt={`${detailSample.name}${activeDetailImage.label}`} src={activeDetailImage.url} />}
+                  <button
+                    aria-label="放大图片"
+                    className="front-zoom-button"
+                    disabled={!activeDetailImage}
+                    onClick={() => activeDetailImage && setZoomImage({ sample: detailSample, image: activeDetailImage })}
+                    type="button"
+                  >
+                    <Expand size={18} />
+                  </button>
+                </div>
+                {detailImages.length > 1 ? (
+                  <div aria-label="样衣正背面图片" className="front-detail-thumbs">
+                    {detailImages.map((image) => (
+                      <button
+                        className={image.id === activeDetailImage?.id ? "active" : ""}
+                        key={image.id}
+                        onClick={() => setActiveDetailImageId(image.id)}
+                        type="button"
+                      >
+                        <img alt={`${detailSample.name}${image.label}`} src={image.url} />
+                        <span>{image.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="front-detail-thumbs single">
+                    <span>背面图待上传</span>
+                  </div>
+                )}
               </div>
 
               <div className="front-detail-info">
@@ -2670,8 +2702,8 @@ function FrontDeskPinterestView(props: {
         </div>
       )}
 
-      {zoomSample && (
-        <div className="front-image-zoom-backdrop" onClick={() => setZoomSample(null)} role="presentation">
+      {zoomImage && (
+        <div className="front-image-zoom-backdrop" onClick={() => setZoomImage(null)} role="presentation">
           <section
             aria-label="样衣图片放大预览"
             className="front-image-zoom-panel"
@@ -2680,15 +2712,17 @@ function FrontDeskPinterestView(props: {
           >
             <div className="profile-head">
               <div>
-                <p className="eyebrow">{zoomSample.sku}</p>
-                <h2>{zoomSample.name}</h2>
+                <p className="eyebrow">
+                  {zoomImage.sample.sku} · {zoomImage.image.label}
+                </p>
+                <h2>{zoomImage.sample.name}</h2>
               </div>
-              <button className="icon-button" onClick={() => setZoomSample(null)} type="button">
+              <button className="icon-button" onClick={() => setZoomImage(null)} type="button">
                 <X size={17} />
               </button>
             </div>
             <div className="front-image-zoom-stage">
-              <img alt={zoomSample.name} src={zoomSample.enhancedImageUrl || zoomSample.imageUrl} />
+              <img alt={`${zoomImage.sample.name}${zoomImage.image.label}`} src={zoomImage.image.url} />
             </div>
           </section>
         </div>
@@ -3148,6 +3182,51 @@ function parseFiles(value: string): DesignFile[] {
       const [name = "", type = "", url = ""] = line.split("|").map((item) => item.trim());
       return { id: uid(), name, type, url };
     });
+}
+
+function getSampleViewImages(sample: Sample): SampleViewImage[] {
+  const images: SampleViewImage[] = [];
+  const seen = new Set<string>();
+  const addImage = (image: SampleViewImage) => {
+    if (!image.url || seen.has(image.url)) {
+      return;
+    }
+    seen.add(image.url);
+    images.push(image);
+  };
+
+  addImage({
+    id: "front",
+    label: "正面",
+    url: sample.enhancedImageUrl || sample.imageUrl
+  });
+
+  sample.designFiles
+    .filter(isSampleImageFile)
+    .forEach((file, index) => {
+      addImage({
+        id: file.id || `file-${index}`,
+        label: labelForSampleImage(file.name, file.url, index),
+        url: file.url
+      });
+    });
+
+  return images;
+}
+
+function isSampleImageFile(file: DesignFile) {
+  return /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i.test(file.url) || /jpe?g|png|webp|gif|image/i.test(file.type);
+}
+
+function labelForSampleImage(name: string, url: string, index: number) {
+  const text = `${name} ${url}`.toLowerCase();
+  if (text.includes("背") || text.includes("back")) {
+    return "背面";
+  }
+  if (text.includes("正") || text.includes("front")) {
+    return "正面";
+  }
+  return `图片 ${index + 1}`;
 }
 
 function uid() {
