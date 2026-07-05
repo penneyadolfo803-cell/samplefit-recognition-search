@@ -21,6 +21,7 @@ import {
   Database,
   Expand,
   FileText,
+  Globe2,
   Heart,
   Home,
   ImageUp,
@@ -29,6 +30,7 @@ import {
   PackagePlus,
   PanelLeftClose,
   PanelLeftOpen,
+  PlayCircle,
   Presentation,
   ReceiptText,
   RotateCcw,
@@ -97,7 +99,7 @@ import {
   filterFrontCatalogSamples,
   getFrontCatalogCounts,
   getFrontCatalogSamples,
-  getSampleSourceLabel,
+  getSampleSourceLabel as getBaseSampleSourceLabel,
   type FrontCatalogSource
 } from "./lib/front-catalog";
 import { createDemoWhiteBackgroundPreview, fileToOptimizedDataUrl, formatTags } from "./lib/image";
@@ -115,6 +117,7 @@ import type {
 
 type TabId = "library" | "entry" | "bulk" | "borrow" | "billing" | "analytics" | "ai" | "settings" | "designerMe";
 type PortalMode = "admin" | "front";
+type Locale = "zh" | "en";
 type FrontUser = { name: string; team: string; phone: string };
 type PptRecord = {
   id: string;
@@ -159,8 +162,54 @@ const storageKeys = {
   feeBills: "samplefit.front.feeBills",
   billingRule: "samplefit.billing.rule",
   systemConfig: "samplefit.system.config",
-  currentDesigner: "samplefit.admin.currentDesigner"
+  currentDesigner: "samplefit.admin.currentDesigner",
+  language: "samplefit.language"
 };
+
+const tabLabels: Record<TabId, Record<Locale, string>> = {
+  library: { zh: "样衣库", en: "Library" },
+  entry: { zh: "录入", en: "Intake" },
+  bulk: { zh: "大货", en: "Bulk" },
+  borrow: { zh: "借还", en: "Loan" },
+  billing: { zh: "账单", en: "Billing" },
+  analytics: { zh: "分析", en: "Analytics" },
+  ai: { zh: "识别检索", en: "AI Search" },
+  designerMe: { zh: "我的", en: "My Studio" },
+  settings: { zh: "配置", en: "Settings" }
+};
+
+const tabTitles: Record<TabId, Record<Locale, string>> = {
+  library: { zh: "在线样衣资料库", en: "Online Sample Library" },
+  entry: { zh: "样衣录入与维护", en: "Sample Intake and Maintenance" },
+  bulk: { zh: "业务组大货录入", en: "Bulk Goods Intake" },
+  borrow: { zh: "样衣借还", en: "Sample Loan and Return" },
+  billing: { zh: "账单拉取", en: "Billing Pull" },
+  analytics: { zh: "数据分析", en: "Borrowing Analytics" },
+  ai: { zh: "识别检索与自动报价", en: "Visual Search and Auto Quote" },
+  designerMe: { zh: "设计师个人中心", en: "Designer Center" },
+  settings: { zh: "系统配置与权限", en: "System Settings and Permissions" }
+};
+
+const statusLabels: Record<Sample["status"], Record<Locale, string>> = {
+  in_stock: { zh: "在库", en: "In stock" },
+  borrowed: { zh: "借出", en: "On loan" },
+  maintenance: { zh: "维护", en: "Maintenance" },
+  damaged: { zh: "报损", en: "Reported loss" }
+};
+
+const sourceLabels: Record<Sample["source"], Record<Locale, string>> = {
+  design: { zh: "设计样衣", en: "Design sample" },
+  bulk: { zh: "大货样品", en: "Bulk sample" }
+};
+
+function ui(locale: Locale, zh: string, en: string) {
+  return locale === "en" ? en : zh;
+}
+
+function readStoredLanguage(): Locale {
+  const value = readStoredObject<Locale>(storageKeys.language);
+  return value === "en" ? "en" : "zh";
+}
 
 const designStorageZones = [
   { location: "设计部样衣间", racks: ["SJ-01", "SJ-02", "SJ-03", "SJ-04", "SJ-05", "SJ-06", "SJ-07", "SJ-08"] },
@@ -267,6 +316,7 @@ function App() {
   const [health, setHealth] = useState<HealthPayload | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [portalMode, setPortalMode] = useState<PortalMode>("admin");
+  const [language, setLanguage] = useState<Locale>(readStoredLanguage);
   const [tab, setTab] = useState<TabId>("library");
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<SampleDraft>(emptyDraft);
@@ -438,6 +488,13 @@ function App() {
   useEffect(() => {
     void reload();
   }, []);
+
+  useEffect(() => {
+    writeStoredObject(storageKeys.language, language);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+    }
+  }, [language]);
 
   useEffect(() => {
     writeStoredObject(storageKeys.frontUser, frontUser);
@@ -1141,6 +1198,10 @@ function App() {
     setSearchImage(await fileToOptimizedDataUrl(file, 960));
   }
 
+  function openTutorial() {
+    window.open(new URL("./tutorial/index.html", window.location.href).toString(), "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className={`app-shell ${portalMode === "front" ? "front-mode" : ""}`}>
       <aside className="sidebar">
@@ -1161,7 +1222,7 @@ function App() {
             type="button"
           >
             <ShieldCheck size={17} />
-            设计部后台
+            {ui(language, "设计部后台", "Design Admin")}
           </button>
           <button
             className={portalMode === "front" ? "active" : ""}
@@ -1169,7 +1230,7 @@ function App() {
             type="button"
           >
             <LogIn size={17} />
-            业务前台
+            {ui(language, "业务前台", "Sales Desk")}
           </button>
         </div>
 
@@ -1183,7 +1244,7 @@ function App() {
                 type="button"
               >
                 <item.icon size={18} />
-                {item.label}
+                {tabLabels[item.id][language]}
               </button>
             ))}
           </nav>
@@ -1192,8 +1253,14 @@ function App() {
         <div className="model-card">
           <span className={health?.aiConfigured ? "dot ok" : "dot"} />
           <div>
-            <strong>{demoMode ? "客户演示版" : health?.aiConfigured ? "真实 AI 已接入" : "AI 未配置"}</strong>
-            <small>{health?.models.embedding || "等待服务启动"}</small>
+            <strong>
+              {demoMode
+                ? ui(language, "客户演示版", "Client demo")
+                : health?.aiConfigured
+                  ? ui(language, "真实 AI 已接入", "Live AI connected")
+                  : ui(language, "AI 未配置", "AI not configured")}
+            </strong>
+            <small>{health?.models.embedding || ui(language, "等待服务启动", "Waiting for service")}</small>
           </div>
         </div>
       </aside>
@@ -1203,16 +1270,21 @@ function App() {
           <header className="topbar">
             <div>
               <p className="eyebrow">{systemConfig.appName}</p>
-              <h1>{titleFor(tab)}</h1>
+              <h1>{titleFor(tab, language)}</h1>
             </div>
             <div className="top-actions">
+              <LanguageSwitcher language={language} setLanguage={setLanguage} />
+              <button className="ghost" onClick={openTutorial} type="button">
+                <PlayCircle size={16} />
+                {ui(language, "讲解动画", "Tour")}
+              </button>
               <button className="assistant-trigger" onClick={() => setShowYunzhiAssistant(true)} type="button">
-                <img alt="问问云知" src="./yunzhi-avatar.png" />
-                问问云知
+                <img alt={ui(language, "问问云知", "Ask Yunzhi")} src="./yunzhi-avatar.png" />
+                {ui(language, "问问云知", "Ask Yunzhi")}
               </button>
               <div className="credit-pill">
                 <Coins size={16} />
-                <span>AI 积分剩余</span>
+                <span>{ui(language, "AI 积分剩余", "AI credits")}</span>
                 <strong>{aiCreditsRemaining}</strong>
               </div>
               <button className="ghost" onClick={() => setTab("designerMe")} type="button">
@@ -1221,15 +1293,15 @@ function App() {
               </button>
               <button className="ghost" onClick={() => void reload()} type="button">
                 <RotateCcw size={16} />
-                刷新
+                {ui(language, "刷新", "Refresh")}
               </button>
               <button onClick={startCreate} type="button">
                 <PackagePlus size={16} />
-                新增样衣
+                {ui(language, "新增样衣", "New sample")}
               </button>
               <button className="ghost" onClick={() => startBulkCreate()} type="button">
                 <Boxes size={16} />
-                大货录入
+                {ui(language, "大货录入", "Bulk intake")}
               </button>
             </div>
           </header>
@@ -1239,19 +1311,19 @@ function App() {
 
         {portalMode === "admin" && (
           <section className="metrics">
-            <Metric icon={Boxes} label="在线样衣" value={metrics.total} />
-            <Metric icon={Database} label="大货样品" value={metrics.bulk} />
-            <Metric icon={BadgeCheck} label="可借在库" value={metrics.inStock} />
-            <Metric icon={Archive} label="当前借出" value={metrics.borrowed} />
-            <Metric icon={AlertTriangle} label="报损样衣" value={metrics.damaged} />
-            <Metric icon={ClipboardList} label="待处理申请" value={metrics.requests} />
+            <Metric icon={Boxes} label={ui(language, "在线样衣", "Online samples")} value={metrics.total} />
+            <Metric icon={Database} label={ui(language, "大货样品", "Bulk samples")} value={metrics.bulk} />
+            <Metric icon={BadgeCheck} label={ui(language, "可借在库", "Available")} value={metrics.inStock} />
+            <Metric icon={Archive} label={ui(language, "当前借出", "On loan")} value={metrics.borrowed} />
+            <Metric icon={AlertTriangle} label={ui(language, "报损样衣", "Loss reports")} value={metrics.damaged} />
+            <Metric icon={ClipboardList} label={ui(language, "待处理申请", "Pending requests")} value={metrics.requests} />
           </section>
         )}
 
         {busy === "load" ? (
           <div className="loading">
             <Loader2 className="spin" size={22} />
-            加载中
+            {ui(language, "加载中", "Loading")}
           </div>
         ) : portalMode === "front" ? (
           <FrontDeskPinterestView
@@ -1273,8 +1345,10 @@ function App() {
             aiCreditsRemaining={aiCreditsRemaining}
             billingRule={billingRule}
             generateFrontPpt={generateFrontPpt}
+            language={language}
             openProfile={() => setShowProfile(true)}
             openYunzhi={() => setShowYunzhiAssistant(true)}
+            openTutorial={openTutorial}
             reload={reload}
             runFrontVisualSearch={() => runSimilarSearch("")}
             setPortalMode={setPortalMode}
@@ -1288,6 +1362,7 @@ function App() {
             toggleFrontFavorite={toggleFrontFavorite}
             toggleFrontSelect={toggleFrontSelect}
             uploadSearchImage={uploadSearchImage}
+            setLanguage={setLanguage}
           />
         ) : (
           <>
@@ -1437,7 +1512,7 @@ function App() {
           type="button"
         >
           <LogIn size={18} />
-          <span>前台</span>
+          <span>{ui(language, "前台", "Desk")}</span>
         </button>
         {tabs.map((item) => (
           <button
@@ -1450,7 +1525,7 @@ function App() {
             type="button"
           >
             <item.icon size={18} />
-            <span>{item.label}</span>
+            <span>{tabLabels[item.id][language]}</span>
           </button>
         ))}
       </nav>
@@ -1459,6 +1534,7 @@ function App() {
         <ProfileDrawer
           bills={feeBills}
           frontUser={frontUser}
+          language={language}
           onClose={() => setShowProfile(false)}
           pptRecords={pptRecords}
           requests={borrowRequests}
@@ -1469,6 +1545,7 @@ function App() {
         <YunzhiAssistantDrawer
           billingRule={billingRule}
           frontUser={frontUser}
+          language={language}
           onClose={() => setShowYunzhiAssistant(false)}
           samples={samples}
           selected={selected}
@@ -2921,7 +2998,9 @@ function FrontDeskPinterestView(props: {
   similarResults: SimilarResult[];
   billingRule: BillingRule;
   generateFrontPpt: () => Promise<void>;
+  language: Locale;
   openProfile: () => void;
+  openTutorial: () => void;
   openYunzhi: () => void;
   reload: () => Promise<void>;
   runFrontVisualSearch: () => Promise<void>;
@@ -2930,6 +3009,7 @@ function FrontDeskPinterestView(props: {
   setFrontLogin: Dispatch<SetStateAction<{ name: string; team: string; phone: string }>>;
   setFrontQuery: (value: string) => void;
   setFrontRequestForm: Dispatch<SetStateAction<{ purpose: string; dueAt: string; note: string }>>;
+  setLanguage: (value: Locale) => void;
   setSelectedId: (value: string) => void;
   loginFrontDesk: () => void;
   submitFrontBorrowRequest: (target: Sample | Sample[]) => Promise<void>;
@@ -2944,10 +3024,11 @@ function FrontDeskPinterestView(props: {
   const [visualSearchHasRun, setVisualSearchHasRun] = useState(false);
   const [activeDetailImageId, setActiveDetailImageId] = useState("front");
   const [zoomImage, setZoomImage] = useState<{ sample: Sample; image: SampleViewImage } | null>(null);
+  const l = props.language;
   const catalogOptions: Array<{ id: FrontCatalogSource; label: string; icon: LucideIcon; count: number }> = [
-    { id: "all", label: "全部样衣", icon: Home, count: props.frontCatalogCounts.all },
-    { id: "design", label: "设计样衣", icon: Shirt, count: props.frontCatalogCounts.design },
-    { id: "bulk", label: "大货样品", icon: Boxes, count: props.frontCatalogCounts.bulk }
+    { id: "all", label: ui(l, "全部样衣", "All samples"), icon: Home, count: props.frontCatalogCounts.all },
+    { id: "design", label: ui(l, "设计样衣", "Design samples"), icon: Shirt, count: props.frontCatalogCounts.design },
+    { id: "bulk", label: ui(l, "大货样品", "Bulk samples"), icon: Boxes, count: props.frontCatalogCounts.bulk }
   ];
   const visibleSamples = props.frontSamples.filter((sample) => {
     if (frontFilter === "available") {
@@ -2968,19 +3049,24 @@ function FrontDeskPinterestView(props: {
   const currentFavoriteCount = props.frontSamples.filter((sample) => props.frontFavoriteIds.includes(sample.id)).length;
   const currentSelectedCount = props.frontSamples.filter((sample) => props.frontSelectedIds.includes(sample.id)).length;
   const menuItems = [
-    { id: "all" as const, label: "全部", icon: Home, count: props.frontSamples.length },
+    { id: "all" as const, label: ui(l, "全部", "All"), icon: Home, count: props.frontSamples.length },
     {
       id: "available" as const,
-      label: "在库",
+      label: ui(l, "在库", "In stock"),
       icon: BadgeCheck,
       count: props.frontSamples.filter((sample) => sample.status === "in_stock").length
     },
-    { id: "favorites" as const, label: "收藏", icon: Heart, count: currentFavoriteCount },
-    { id: "selected" as const, label: "已选", icon: CheckSquare, count: currentSelectedCount }
+    { id: "favorites" as const, label: ui(l, "收藏", "Favorites"), icon: Heart, count: currentFavoriteCount },
+    { id: "selected" as const, label: ui(l, "已选", "Selected"), icon: CheckSquare, count: currentSelectedCount }
   ];
-  const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || "全部";
-  const catalogLabel = catalogOptions.find((item) => item.id === props.frontCatalogSource)?.label || "全部样衣";
-  const boardTitle = props.frontCatalogSource === "all" && frontFilter === "all" ? "全部样衣" : `${filterLabel}${catalogLabel}`;
+  const filterLabel = menuItems.find((item) => item.id === frontFilter)?.label || ui(l, "全部", "All");
+  const catalogLabel = catalogOptions.find((item) => item.id === props.frontCatalogSource)?.label || ui(l, "全部样衣", "All samples");
+  const boardTitle =
+    props.frontCatalogSource === "all" && frontFilter === "all"
+      ? ui(l, "全部样衣", "All samples")
+      : l === "en"
+        ? `${filterLabel} ${catalogLabel}`
+        : `${filterLabel}${catalogLabel}`;
   const frontSampleIds = new Set(props.frontSamples.map((sample) => sample.id));
   const frontVisualResults = visualSearchHasRun
     ? props.similarResults.filter((result) => frontSampleIds.has(result.sample.id)).slice(0, 12)
@@ -3018,7 +3104,7 @@ function FrontDeskPinterestView(props: {
         </button>
         <div className="front-pin-actions">
           <button
-            aria-label="收藏"
+            aria-label={ui(l, "收藏", "Favorite")}
             className={favorited ? "front-round-action active" : "front-round-action"}
             onClick={() => props.toggleFrontFavorite(sample)}
             type="button"
@@ -3026,7 +3112,7 @@ function FrontDeskPinterestView(props: {
             <Heart fill={favorited ? "currentColor" : "none"} size={16} />
           </button>
           <button
-            aria-label="选择"
+            aria-label={ui(l, "选择", "Select")}
             className={selected ? "front-round-action active" : "front-round-action"}
             onClick={() => props.toggleFrontSelect(sample)}
             type="button"
@@ -3040,9 +3126,9 @@ function FrontDeskPinterestView(props: {
           </button>
           <span>{sample.sku} · {sample.category}</span>
           <div className="front-card-meta">
-            <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample)}</small>
-            <small className={`status ${sample.status}`}>{sampleStatusText[sample.status]}</small>
-            <small>{formatMoney(calculateBorrowFee(sample, props.billingRule))}/次</small>
+            <small className={`front-source ${sample.source}`}>{getSampleSourceLabel(sample, l)}</small>
+            <small className={`status ${sample.status}`}>{sampleStatusTextFor(sample.status, l)}</small>
+            <small>{formatMoney(calculateBorrowFee(sample, props.billingRule))}/{ui(l, "次", "loan")}</small>
             <small>{sample.color || sample.fabric}</small>
             <span className={favorited ? "front-like-count active" : "front-like-count"}>
               <Heart fill={favorited ? "currentColor" : "none"} size={14} />
@@ -3058,41 +3144,47 @@ function FrontDeskPinterestView(props: {
     return (
       <section className="front-login-layout">
         <div className="panel front-hero-panel">
-          <p className="eyebrow">业务前台</p>
-          <h2>业务员登录后可查看全部在线样衣</h2>
-          <p>前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。</p>
+          <p className="eyebrow">{ui(l, "业务前台", "Sales Desk")}</p>
+          <h2>{ui(l, "业务员登录后可查看全部在线样衣", "Sign in to browse all online samples")}</h2>
+          <p>
+            {ui(
+              l,
+              "前台仅提交借出需求，不直接改变库存状态。设计部后台确认后再登记正式借出。",
+              "The sales desk submits loan requests only. Inventory changes after design admin approval."
+            )}
+          </p>
           <div className="front-hero-stats">
-            <span>在线样衣 {props.frontSamples.length}</span>
-            <span>可申请 {props.frontSamples.filter((sample) => sample.status === "in_stock").length}</span>
-            <span>待处理 {props.requests.filter((request) => request.status === "pending").length}</span>
+            <span>{ui(l, "在线样衣", "Online")} {props.frontSamples.length}</span>
+            <span>{ui(l, "可申请", "Available")} {props.frontSamples.filter((sample) => sample.status === "in_stock").length}</span>
+            <span>{ui(l, "待处理", "Pending")} {props.requests.filter((request) => request.status === "pending").length}</span>
           </div>
         </div>
         <div className="panel front-login-card">
           <div className="form-toolbar">
             <div>
-              <h2>前台入口登录</h2>
-              <p>用于记录申请人和业务组</p>
+              <h2>{ui(l, "前台入口登录", "Sales Desk Sign-in")}</h2>
+              <p>{ui(l, "用于记录申请人和业务组", "Used for requester and team records")}</p>
             </div>
             <UserRound size={24} />
           </div>
           <Field
-            label="业务员姓名"
+            label={ui(l, "业务员姓名", "Sales name")}
             value={props.frontLogin.name}
             onChange={(value) => props.setFrontLogin((current) => ({ ...current, name: value }))}
           />
           <Field
-            label="业务组"
+            label={ui(l, "业务组", "Business team")}
             value={props.frontLogin.team}
             onChange={(value) => props.setFrontLogin((current) => ({ ...current, team: value }))}
           />
           <Field
-            label="手机"
+            label={ui(l, "手机", "Phone")}
             value={props.frontLogin.phone}
             onChange={(value) => props.setFrontLogin((current) => ({ ...current, phone: value }))}
           />
           <button onClick={props.loginFrontDesk} type="button">
             <LogIn size={16} />
-            进入前台
+            {ui(l, "进入前台", "Enter")}
           </button>
         </div>
       </section>
@@ -3104,7 +3196,7 @@ function FrontDeskPinterestView(props: {
       <aside className="front-side-menu">
         <div className="front-menu-head">
           <button
-            aria-label={menuCollapsed ? "展开菜单" : "收起菜单"}
+            aria-label={menuCollapsed ? ui(l, "展开菜单", "Expand menu") : ui(l, "收起菜单", "Collapse menu")}
             className="front-menu-toggle"
             onClick={() => setMenuCollapsed((value) => !value)}
             type="button"
@@ -3113,11 +3205,11 @@ function FrontDeskPinterestView(props: {
           </button>
           <div className="front-menu-brand">
             <Shirt size={20} />
-            <span>舜天信兴</span>
+            <span>{ui(l, "舜天信兴", "Suntien Xinxing")}</span>
           </div>
         </div>
 
-        <div className="front-catalog-switch" aria-label="前台库存类型">
+        <div className="front-catalog-switch" aria-label={ui(l, "前台库存类型", "Sales catalog source")}>
           {catalogOptions.map((item) => {
             const Icon = item.icon;
             return (
@@ -3164,11 +3256,11 @@ function FrontDeskPinterestView(props: {
         <div className="front-menu-foot">
           <button onClick={() => props.setPortalMode("admin")} type="button">
             <ShieldCheck size={18} />
-            <span>后台</span>
+            <span>{ui(l, "后台", "Admin")}</span>
           </button>
           <button onClick={() => void props.reload()} type="button">
             <RotateCcw size={18} />
-            <span>刷新</span>
+            <span>{ui(l, "刷新", "Refresh")}</span>
           </button>
         </div>
       </aside>
@@ -3177,21 +3269,30 @@ function FrontDeskPinterestView(props: {
         <header className="front-floating-topbar">
           <div className="front-search-pill">
             <Search size={16} />
-            <input onChange={(event) => props.setFrontQuery(event.target.value)} placeholder="搜索" value={props.frontQuery} />
+            <input
+              onChange={(event) => props.setFrontQuery(event.target.value)}
+              placeholder={ui(l, "搜索", "Search")}
+              value={props.frontQuery}
+            />
             <button
-              aria-label="拍照搜款"
+              aria-label={ui(l, "拍照搜款", "Visual search")}
               className="front-visual-trigger"
               onClick={openVisualSearch}
-              title="拍照或上传图片搜类似款"
+              title={ui(l, "拍照或上传图片搜类似款", "Take or upload a photo to find similar samples")}
               type="button"
             >
               <Camera size={18} />
             </button>
           </div>
           <div className="front-top-actions">
+            <LanguageSwitcher language={l} setLanguage={props.setLanguage} />
+            <button className="ghost" onClick={props.openTutorial} type="button">
+              <PlayCircle size={16} />
+              {ui(l, "讲解动画", "Tour")}
+            </button>
             <button className="assistant-trigger compact" onClick={props.openYunzhi} type="button">
-              <img alt="问问云知" src="./yunzhi-avatar.png" />
-              问问云知
+              <img alt={ui(l, "问问云知", "Ask Yunzhi")} src="./yunzhi-avatar.png" />
+              {ui(l, "问问云知", "Ask Yunzhi")}
             </button>
             <span className="front-credit-chip">
               <Coins size={15} />
@@ -3203,12 +3304,12 @@ function FrontDeskPinterestView(props: {
               type="button"
             >
               {props.busy === "ppt" ? <Loader2 className="spin" size={16} /> : <Presentation size={16} />}
-              推款 PPT
+              {ui(l, "推款 PPT", "Pitch PPT")}
               {props.frontSelectedSamples.length ? <b>{props.frontSelectedSamples.length}</b> : null}
             </button>
             <button className="ghost" onClick={props.openProfile} type="button">
               <UserRound size={16} />
-              我的
+              {ui(l, "我的", "Mine")}
             </button>
           </div>
         </header>
@@ -3217,12 +3318,12 @@ function FrontDeskPinterestView(props: {
           <div className="front-board">
             <div className="front-board-head">
               <div>
-                <p className="eyebrow">业务前台</p>
+                <p className="eyebrow">{ui(l, "业务前台", "Sales Desk")}</p>
                 <h2>{boardTitle}</h2>
               </div>
               <div className="front-board-stats">
-                <span>{visibleSamples.length} 件</span>
-                <span>已选 {props.frontSelectedSamples.length}</span>
+                <span>{visibleSamples.length} {ui(l, "件", "items")}</span>
+                <span>{ui(l, "已选", "Selected")} {props.frontSelectedSamples.length}</span>
                 <span>{props.frontUser.name} · {props.frontUser.team}</span>
               </div>
             </div>
@@ -3237,7 +3338,7 @@ function FrontDeskPinterestView(props: {
           <div className="front-detail-page">
             <button className="front-back-button" onClick={() => setFrontDetailId(null)} type="button">
               <ArrowLeft size={18} />
-              返回
+              {ui(l, "返回", "Back")}
             </button>
 
             <div className="front-detail-hero">
@@ -3245,7 +3346,7 @@ function FrontDeskPinterestView(props: {
                 <div className="front-detail-image-stage">
                   {activeDetailImage && <img alt={`${detailSample.name}${activeDetailImage.label}`} src={activeDetailImage.url} />}
                   <button
-                    aria-label="放大图片"
+                    aria-label={ui(l, "放大图片", "Zoom image")}
                     className="front-zoom-button"
                     disabled={!activeDetailImage}
                     onClick={() => activeDetailImage && setZoomImage({ sample: detailSample, image: activeDetailImage })}
@@ -3255,7 +3356,7 @@ function FrontDeskPinterestView(props: {
                   </button>
                 </div>
                 {detailImages.length > 1 ? (
-                  <div aria-label="样衣正背面图片" className="front-detail-thumbs">
+                  <div aria-label={ui(l, "样衣正背面图片", "Front and back sample images")} className="front-detail-thumbs">
                     {detailImages.map((image) => (
                       <button
                         className={image.id === activeDetailImage?.id ? "active" : ""}
@@ -3264,13 +3365,13 @@ function FrontDeskPinterestView(props: {
                         type="button"
                       >
                         <img alt={`${detailSample.name}${image.label}`} src={image.url} />
-                        <span>{image.label}</span>
+                        <span>{sampleImageLabel(image.label, l)}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
                   <div className="front-detail-thumbs single">
-                    <span>背面图待上传</span>
+                    <span>{ui(l, "背面图待上传", "Back image pending")}</span>
                   </div>
                 )}
               </div>
@@ -3283,7 +3384,7 @@ function FrontDeskPinterestView(props: {
                     type="button"
                   >
                     <Heart fill={props.frontFavoriteIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
-                    收藏
+                    {ui(l, "收藏", "Favorite")}
                   </button>
                   <button
                     className={props.frontSelectedIds.includes(detailSample.id) ? "front-icon-text active" : "front-icon-text"}
@@ -3291,7 +3392,7 @@ function FrontDeskPinterestView(props: {
                     type="button"
                   >
                     <Check size={18} />
-                    选择
+                    {ui(l, "选择", "Select")}
                   </button>
                   <span className={props.frontFavoriteIds.includes(detailSample.id) ? "front-like-count active" : "front-like-count"}>
                     <Heart fill={props.frontFavoriteIds.includes(detailSample.id) ? "currentColor" : "none"} size={18} />
@@ -3312,18 +3413,21 @@ function FrontDeskPinterestView(props: {
                 </div>
 
                 <div className="info-grid">
-                  <Info label="样衣类型" value={getSampleSourceLabel(detailSample)} />
-                  <Info label="状态" value={sampleStatusText[detailSample.status]} />
-                  <Info label="吊牌价" value={formatRetailPrice(detailSample)} />
-                  <Info label="借样计费" value={`${formatMoney(calculateBorrowFee(detailSample, props.billingRule))}/次`} />
-                  <Info label="季节" value={detailSample.season} />
-                  <Info label="尺码" value={detailSample.size} />
-                  <Info label="库位" value={`${detailSample.location} ${detailSample.rack}`} />
+                  <Info label={ui(l, "样衣类型", "Type")} value={getSampleSourceLabel(detailSample, l)} />
+                  <Info label={ui(l, "状态", "Status")} value={sampleStatusTextFor(detailSample.status, l)} />
+                  <Info label={ui(l, "吊牌价", "Retail price")} value={formatRetailPrice(detailSample)} />
+                  <Info
+                    label={ui(l, "借样计费", "Loan fee")}
+                    value={`${formatMoney(calculateBorrowFee(detailSample, props.billingRule))}/${ui(l, "次", "loan")}`}
+                  />
+                  <Info label={ui(l, "季节", "Season")} value={detailSample.season} />
+                  <Info label={ui(l, "尺码", "Size")} value={detailSample.size} />
+                  <Info label={ui(l, "库位", "Location")} value={`${detailSample.location} ${detailSample.rack}`} />
                 </div>
 
                 {props.frontSelectedSamples.length > 0 && (
                   <div className="selected-strip">
-                    <strong>已选推款</strong>
+                    <strong>{ui(l, "已选推款", "Selected pitch list")}</strong>
                     <div>
                       {props.frontSelectedSamples.map((sample) => (
                         <span key={sample.id}>{sample.sku}</span>
@@ -3334,12 +3438,12 @@ function FrontDeskPinterestView(props: {
 
                 <div className="front-request-form compact">
                   <Field
-                    label="借样用途"
+                    label={ui(l, "借样用途", "Loan purpose")}
                     value={props.frontRequestForm.purpose}
                     onChange={(value) => props.setFrontRequestForm((current) => ({ ...current, purpose: value }))}
                   />
                   <label>
-                    期望归还
+                    {ui(l, "期望归还", "Expected return")}
                     <input
                       onChange={(event) =>
                         props.setFrontRequestForm((current) => ({ ...current, dueAt: event.target.value }))
@@ -3349,7 +3453,7 @@ function FrontDeskPinterestView(props: {
                     />
                   </label>
                   <label>
-                    备注
+                    {ui(l, "备注", "Notes")}
                     <textarea
                       onChange={(event) =>
                         props.setFrontRequestForm((current) => ({ ...current, note: event.target.value }))
@@ -3364,7 +3468,7 @@ function FrontDeskPinterestView(props: {
                       type="button"
                     >
                       {props.busy === "front-request" ? <Loader2 className="spin" size={16} /> : <Send size={16} />}
-                      申请当前样衣
+                      {ui(l, "申请当前样衣", "Request this sample")}
                     </button>
                     <button
                       className="ghost"
@@ -3373,7 +3477,7 @@ function FrontDeskPinterestView(props: {
                       type="button"
                     >
                       <ClipboardList size={16} />
-                      申请已选
+                      {ui(l, "申请已选", "Request selected")}
                     </button>
                   </div>
                 </div>
@@ -3383,10 +3487,10 @@ function FrontDeskPinterestView(props: {
             <section className="front-recommend-section">
               <div className="front-board-head">
                 <div>
-                  <p className="eyebrow">近似款推荐</p>
-                  <h2>{detailSample.category || "相关样衣"}</h2>
+                  <p className="eyebrow">{ui(l, "近似款推荐", "Similar recommendations")}</p>
+                  <h2>{detailSample.category || ui(l, "相关样衣", "Related samples")}</h2>
                 </div>
-                <span>{recommendationSamples.length} 件</span>
+                <span>{recommendationSamples.length} {ui(l, "件", "items")}</span>
               </div>
               {recommendationSamples.length ? (
                 <div className="front-waterfall recommend">
@@ -3402,12 +3506,18 @@ function FrontDeskPinterestView(props: {
 
       {visualSearchOpen && (
         <div className="front-visual-backdrop" role="presentation">
-          <section className="front-visual-panel" role="dialog" aria-label="拍照搜款">
+          <section className="front-visual-panel" role="dialog" aria-label={ui(l, "拍照搜款", "Visual search")}>
             <div className="profile-head">
               <div>
-                <p className="eyebrow">拍照搜款</p>
-                <h2>上传图片检索类似样衣</h2>
-                <span>支持现场拍照或从相册选择，结果仅展示当前前台可见样衣。</span>
+                <p className="eyebrow">{ui(l, "拍照搜款", "Visual search")}</p>
+                <h2>{ui(l, "上传图片检索类似样衣", "Upload an image to find similar samples")}</h2>
+                <span>
+                  {ui(
+                    l,
+                    "支持现场拍照或从相册选择，结果仅展示当前前台可见样衣。",
+                    "Use camera or album upload. Results only show samples visible in this sales desk."
+                  )}
+                </span>
               </div>
               <button className="icon-button" onClick={() => setVisualSearchOpen(false)} type="button">
                 <X size={17} />
@@ -3418,35 +3528,35 @@ function FrontDeskPinterestView(props: {
               <div className="front-visual-upload">
                 <div className="image-preview compact">
                   {props.searchImage ? (
-                    <img alt="拍照搜款" src={props.searchImage} />
+                    <img alt={ui(l, "拍照搜款", "Visual search")} src={props.searchImage} />
                   ) : (
                     <div className="empty-image">
                       <Camera size={28} />
-                      <span>拍照或上传图片</span>
+                      <span>{ui(l, "拍照或上传图片", "Take or upload a photo")}</span>
                     </div>
                   )}
                 </div>
                 <label className="file-button wide">
                   <ImageUp size={16} />
-                  选择图片
+                  {ui(l, "选择图片", "Choose image")}
                   <input accept="image/*" capture="environment" onChange={uploadFrontSearchImage} type="file" />
                 </label>
                 <button disabled={props.busy === "search" || !props.searchImage} onClick={() => void runFrontSearch()} type="button">
                   {props.busy === "search" ? <Loader2 className="spin" size={16} /> : <Search size={16} />}
-                  搜类似款
+                  {ui(l, "搜类似款", "Find similar")}
                 </button>
               </div>
 
               <div className="front-visual-results">
                 <div className="front-board-head">
                   <div>
-                    <p className="eyebrow">检索结果</p>
+                    <p className="eyebrow">{ui(l, "检索结果", "Search results")}</p>
                     <h2>
                       {frontVisualResults.length
-                        ? `${frontVisualResults.length} 个候选款`
+                        ? `${frontVisualResults.length} ${ui(l, "个候选款", "candidates")}`
                         : visualSearchHasRun
-                          ? "未找到候选款"
-                          : "等待上传图片"}
+                          ? ui(l, "未找到候选款", "No candidates found")
+                          : ui(l, "等待上传图片", "Waiting for image")}
                     </h2>
                   </div>
                 </div>
@@ -3477,7 +3587,11 @@ function FrontDeskPinterestView(props: {
                 ) : (
                   <div className="empty-state">
                     <Search size={28} />
-                    <span>{visualSearchHasRun ? "换一张图片再试" : "上传图片后点击搜类似款"}</span>
+                    <span>
+                      {visualSearchHasRun
+                        ? ui(l, "换一张图片再试", "Try another image")
+                        : ui(l, "上传图片后点击搜类似款", "Upload an image, then find similar samples")}
+                    </span>
                   </div>
                 )}
               </div>
@@ -3489,7 +3603,7 @@ function FrontDeskPinterestView(props: {
       {zoomImage && (
         <div className="front-image-zoom-backdrop" onClick={() => setZoomImage(null)} role="presentation">
           <section
-            aria-label="样衣图片放大预览"
+            aria-label={ui(l, "样衣图片放大预览", "Sample image zoom preview")}
             className="front-image-zoom-panel"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
@@ -3497,7 +3611,7 @@ function FrontDeskPinterestView(props: {
             <div className="profile-head">
               <div>
                 <p className="eyebrow">
-                  {zoomImage.sample.sku} · {zoomImage.image.label}
+                  {zoomImage.sample.sku} · {sampleImageLabel(zoomImage.image.label, l)}
                 </p>
                 <h2>{zoomImage.sample.name}</h2>
               </div>
@@ -3754,22 +3868,28 @@ function FrontDeskView(props: {
 function ProfileDrawer(props: {
   bills: FeeBill[];
   frontUser: FrontUser | null;
+  language: Locale;
   onClose: () => void;
   pptRecords: PptRecord[];
   requests: BorrowRequest[];
 }) {
+  const l = props.language;
   const visibleRequests = props.frontUser
     ? props.requests.filter((request) => request.requester === props.frontUser?.name)
     : props.requests;
 
   return (
     <div className="profile-backdrop" role="presentation">
-      <aside className="panel profile-drawer" role="dialog" aria-label="我的">
+      <aside className="panel profile-drawer" role="dialog" aria-label={ui(l, "我的", "My center")}>
         <div className="profile-head">
           <div>
-            <p className="eyebrow">我的</p>
-            <h2>{props.frontUser ? props.frontUser.name : "个人中心"}</h2>
-            <span>{props.frontUser ? props.frontUser.team : "登录业务前台后记录会归到个人名下"}</span>
+            <p className="eyebrow">{ui(l, "我的", "Mine")}</p>
+            <h2>{props.frontUser ? props.frontUser.name : ui(l, "个人中心", "Profile")}</h2>
+            <span>
+              {props.frontUser
+                ? props.frontUser.team
+                : ui(l, "登录业务前台后记录会归到个人名下", "Records are linked after sales desk sign-in")}
+            </span>
           </div>
           <button className="icon-button" onClick={props.onClose} type="button">
             <X size={17} />
@@ -3779,7 +3899,7 @@ function ProfileDrawer(props: {
         <section className="profile-section">
           <h3>
             <ClipboardList size={16} />
-            借样记录
+            {ui(l, "借样记录", "Loan records")}
           </h3>
           <div className="profile-list">
             {visibleRequests.length ? (
@@ -3794,8 +3914,8 @@ function ProfileDrawer(props: {
               ))
             ) : (
               <div>
-                <strong>暂无借样记录</strong>
-                <span>在业务前台提交申请后会出现在这里</span>
+                <strong>{ui(l, "暂无借样记录", "No loan records")}</strong>
+                <span>{ui(l, "在业务前台提交申请后会出现在这里", "Requests submitted from the sales desk appear here")}</span>
               </div>
             )}
           </div>
@@ -3804,21 +3924,21 @@ function ProfileDrawer(props: {
         <section className="profile-section">
           <h3>
             <Presentation size={16} />
-            PPT 记录
+            {ui(l, "PPT 记录", "PPT records")}
           </h3>
           <div className="profile-list">
             {props.pptRecords.length ? (
               props.pptRecords.slice(0, 8).map((record) => (
                 <div key={record.id}>
                   <strong>{record.fileName}</strong>
-                  <span>{record.sampleCount} 件 · {record.sampleSkus.join("，")}</span>
-                  <small>{formatDate(record.createdAt)} 生成</small>
+                  <span>{record.sampleCount} {ui(l, "件", "items")} · {record.sampleSkus.join("，")}</span>
+                  <small>{formatDate(record.createdAt)} {ui(l, "生成", "generated")}</small>
                 </div>
               ))
             ) : (
               <div>
-                <strong>暂无 PPT 记录</strong>
-                <span>多选样衣后点击右上角生成推款 PPT</span>
+                <strong>{ui(l, "暂无 PPT 记录", "No PPT records")}</strong>
+                <span>{ui(l, "多选样衣后点击右上角生成推款 PPT", "Select samples, then generate a pitch PPT from the top right")}</span>
               </div>
             )}
           </div>
@@ -3827,7 +3947,7 @@ function ProfileDrawer(props: {
         <section className="profile-section">
           <h3>
             <ReceiptText size={16} />
-            费用账单
+            {ui(l, "费用账单", "Fee bills")}
           </h3>
           <div className="profile-list">
             {props.bills.length ? (
@@ -3842,8 +3962,8 @@ function ProfileDrawer(props: {
               ))
             ) : (
               <div>
-                <strong>暂无费用账单</strong>
-                <span>后续接充值和扣费后会显示真实费用流水</span>
+                <strong>{ui(l, "暂无费用账单", "No fee bills")}</strong>
+                <span>{ui(l, "后续接充值和扣费后会显示真实费用流水", "Real charge records appear after payment and deduction are connected")}</span>
               </div>
             )}
           </div>
@@ -3856,20 +3976,27 @@ function ProfileDrawer(props: {
 function YunzhiAssistantDrawer(props: {
   billingRule: BillingRule;
   frontUser: FrontUser | null;
+  language: Locale;
   onClose: () => void;
   samples: Sample[];
   selected?: Sample;
 }) {
+  const l = props.language;
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<YunzhiMessage[]>([
     {
       id: "welcome",
       role: "assistant",
       content:
-        "你好，我是云知。可以问我在库样衣、库位架杆、相似款、报价规则、流行趋势、汇率换算和款式设计建议。"
+        l === "en"
+          ? "Hi, I am Yunzhi. Ask me about inventory, racks, similar samples, pricing rules, trends, exchange rates, and style design ideas."
+          : "你好，我是云知。可以问我在库样衣、库位架杆、相似款、报价规则、流行趋势、汇率换算和款式设计建议。"
     }
   ]);
-  const quickQuestions = ["查在库风衣", "当前款报价", "今年流行趋势", "美元汇率换算", "按库位找样衣"];
+  const quickQuestions =
+    l === "en"
+      ? ["Find trench coats", "Current sample quote", "This year's trend", "USD exchange estimate", "Find by rack"]
+      : ["查在库风衣", "当前款报价", "今年流行趋势", "美元汇率换算", "按库位找样衣"];
 
   const ask = (text: string) => {
     const value = text.trim();
@@ -3888,13 +4015,17 @@ function YunzhiAssistantDrawer(props: {
 
   return (
     <div className="profile-backdrop" role="presentation">
-      <aside className="panel profile-drawer yunzhi-drawer" role="dialog" aria-label="问问云知">
+      <aside className="panel profile-drawer yunzhi-drawer" role="dialog" aria-label={ui(l, "问问云知", "Ask Yunzhi")}>
         <div className="profile-head yunzhi-head">
-          <img alt="问问云知" src="./yunzhi-avatar.png" />
+          <img alt={ui(l, "问问云知", "Ask Yunzhi")} src="./yunzhi-avatar.png" />
           <div>
-            <p className="eyebrow">AI 小助手</p>
-            <h2>问问云知</h2>
-            <span>{props.frontUser ? `${props.frontUser.team} · ${props.frontUser.name}` : "样衣、趋势、汇率、报价一站查询"}</span>
+            <p className="eyebrow">{ui(l, "AI 小助手", "AI assistant")}</p>
+            <h2>{ui(l, "问问云知", "Ask Yunzhi")}</h2>
+            <span>
+              {props.frontUser
+                ? `${props.frontUser.team} · ${props.frontUser.name}`
+                : ui(l, "样衣、趋势、汇率、报价一站查询", "Samples, trends, exchange rates, and quotes in one place")}
+            </span>
           </div>
           <button className="icon-button" onClick={props.onClose} type="button">
             <X size={17} />
@@ -3912,7 +4043,7 @@ function YunzhiAssistantDrawer(props: {
         <div className="yunzhi-chat">
           {messages.map((message) => (
             <div className={`yunzhi-message ${message.role}`} key={message.id}>
-              <span>{message.role === "assistant" ? "云知" : "我"}</span>
+              <span>{message.role === "assistant" ? ui(l, "云知", "Yunzhi") : ui(l, "我", "Me")}</span>
               <p>{message.content}</p>
             </div>
           ))}
@@ -3927,7 +4058,7 @@ function YunzhiAssistantDrawer(props: {
         >
           <input
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="例如：找几件在库风衣，或者帮我看当前款怎么报价"
+            placeholder={ui(l, "例如：找几件在库风衣，或者帮我看当前款怎么报价", "Example: find in-stock coats, or estimate the current sample quote")}
             value={query}
           />
           <button type="submit">
@@ -3946,6 +4077,28 @@ function Metric(props: { icon: LucideIcon; label: string; value: number }) {
       <Icon size={18} />
       <span>{props.label}</span>
       <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function LanguageSwitcher(props: { language: Locale; setLanguage: (value: Locale) => void }) {
+  return (
+    <div aria-label="Language switcher" className="language-switcher">
+      <Globe2 size={15} />
+      <button
+        className={props.language === "zh" ? "active" : ""}
+        onClick={() => props.setLanguage("zh")}
+        type="button"
+      >
+        中文
+      </button>
+      <button
+        className={props.language === "en" ? "active" : ""}
+        onClick={() => props.setLanguage("en")}
+        type="button"
+      >
+        English
+      </button>
     </div>
   );
 }
@@ -4076,18 +4229,26 @@ function EmptyState() {
   );
 }
 
-function titleFor(tab: TabId) {
-  return {
-    library: "在线样衣资料库",
-    entry: "样衣录入与维护",
-    bulk: "业务组大货录入",
-    borrow: "样衣借还",
-    billing: "账单拉取",
-    analytics: "数据分析",
-    ai: "识别检索与自动报价",
-    designerMe: "设计师个人中心",
-    settings: "系统配置与权限"
-  }[tab];
+function titleFor(tab: TabId, locale: Locale = "zh") {
+  return tabTitles[tab][locale];
+}
+
+function sampleStatusTextFor(status: Sample["status"], locale: Locale = "zh") {
+  return statusLabels[status][locale];
+}
+
+function getSampleSourceLabel(sample: Sample, locale: Locale = "zh") {
+  if (locale === "zh") {
+    return getBaseSampleSourceLabel(sample);
+  }
+  return sourceLabels[sample.source].en;
+}
+
+function sampleImageLabel(label: string, locale: Locale) {
+  if (locale === "zh") {
+    return label;
+  }
+  return label.includes("背") ? "Back" : label.includes("正") ? "Front" : label;
 }
 
 function readError(error: unknown) {
@@ -4483,7 +4644,14 @@ function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | 
   const inStockSamples = samples.filter((sample) => sample.status === "in_stock");
   const keywordMatches = findSampleMatches(query, samples);
 
-  if (text.includes("汇率") || text.includes("美元") || text.includes("usd") || text.includes("eur")) {
+  if (
+    text.includes("汇率") ||
+    text.includes("美元") ||
+    text.includes("usd") ||
+    text.includes("eur") ||
+    text.includes("exchange") ||
+    text.includes("currency")
+  ) {
     return [
       "当前演示版提供报价口径参考，不直接作为财务结算汇率。",
       "可先按 USD/CNY 7.20、EUR/CNY 7.78 做内部测算；正式给客户前建议接入实时汇率接口。",
@@ -4493,7 +4661,14 @@ function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | 
       .join("\n");
   }
 
-  if (text.includes("报价") || text.includes("价格") || text.includes("费用")) {
+  if (
+    text.includes("报价") ||
+    text.includes("价格") ||
+    text.includes("费用") ||
+    text.includes("quote") ||
+    text.includes("price") ||
+    text.includes("fee")
+  ) {
     const sample = keywordMatches[0] || selected;
     if (!sample) {
       return `当前收费规则：基础借样费 ${formatMoney(billingRule.baseBorrowFee)}，按吊牌价 ${Math.round(
@@ -4505,7 +4680,16 @@ function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | 
     )}/次\n库位：${sample.location} · ${sample.rack}`;
   }
 
-  if (text.includes("库位") || text.includes("架杆") || text.includes("归还") || text.includes("在库")) {
+  if (
+    text.includes("库位") ||
+    text.includes("架杆") ||
+    text.includes("归还") ||
+    text.includes("在库") ||
+    text.includes("inventory") ||
+    text.includes("stock") ||
+    text.includes("rack") ||
+    text.includes("return")
+  ) {
     const matches = (keywordMatches.length ? keywordMatches : inStockSamples).filter((sample) => sample.status === "in_stock");
     return matches.length
       ? `找到 ${matches.length} 件在库样衣：\n${matches
@@ -4515,7 +4699,7 @@ function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | 
       : "没有找到符合条件的在库样衣，可以换一个款号、品类或库位再问。";
   }
 
-  if (text.includes("趋势") || text.includes("流行")) {
+  if (text.includes("趋势") || text.includes("流行") || text.includes("trend") || text.includes("fashion")) {
     return [
       "近期可重点关注：轻户外防晒、通勤轻西装、低饱和绿色/灰蓝、肌理针织、套装化搭配。",
       "给客户推款时建议按“外套主推 + 衬衫/针织内搭 + 下装补充”组合，减少单品跳跃。",
@@ -4523,7 +4707,14 @@ function buildYunzhiAnswer(query: string, samples: Sample[], selected: Sample | 
     ].join("\n");
   }
 
-  if (text.includes("设计") || text.includes("款式") || text.includes("开发")) {
+  if (
+    text.includes("设计") ||
+    text.includes("款式") ||
+    text.includes("开发") ||
+    text.includes("design") ||
+    text.includes("style") ||
+    text.includes("develop")
+  ) {
     const sample = keywordMatches[0] || selected;
     if (!sample) {
       return "可以给我一个品类或款号，我会结合现有样衣给出廓形、面料、颜色和工艺方向。";

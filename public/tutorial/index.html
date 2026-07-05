@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>舜天信兴样衣管理系统讲解动画 | Sample Management System Tour</title>
+    <style>
+      :root {
+        --ink: #112331;
+        --muted: #586979;
+        --blue: #1f74c9;
+        --glass: linear-gradient(145deg, rgb(255 255 255 / 0.76), rgb(255 255 255 / 0.26));
+        --border: 1px solid rgb(255 255 255 / 0.56);
+        --shadow: 0 26px 90px rgb(50 79 105 / 0.2);
+        font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        color: var(--ink);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          linear-gradient(120deg, rgb(236 246 255 / 0.26), rgb(255 255 255 / 0.1)),
+          url("../liquid-glass-desktop.png") center / cover fixed,
+          #dfeaf6;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      .tour {
+        min-height: 100vh;
+        padding: clamp(14px, 2.2vw, 28px);
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 16px;
+      }
+
+      .topbar,
+      .caption,
+      .glass,
+      .hud-card,
+      .phone,
+      .scene-card,
+      .sample-card,
+      .side-rail,
+      .ppt-slide {
+        border: var(--border);
+        background: var(--glass);
+        box-shadow: var(--shadow), inset 0 1px 0 rgb(255 255 255 / 0.62);
+        backdrop-filter: blur(26px) saturate(165%);
+        -webkit-backdrop-filter: blur(26px) saturate(165%);
+        border-radius: 8px;
+      }
+
+      .topbar {
+        min-height: 70px;
+        padding: 12px 16px;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 0.72);
+        color: var(--blue);
+        font-weight: 900;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: clamp(18px, 2.2vw, 30px);
+        line-height: 1.05;
+      }
+
+      .brand p,
+      .caption p,
+      .scene-card p,
+      .hud-card span,
+      .sample-card span,
+      .subtitle-en {
+        color: var(--muted);
+      }
+
+      .brand p,
+      .scene-card p,
+      .caption p {
+        margin: 4px 0 0;
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .controls button,
+      .controls a {
+        min-height: 38px;
+        border-radius: 8px;
+        border: var(--border);
+        color: var(--ink);
+        background: rgb(255 255 255 / 0.62);
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      .stage {
+        position: relative;
+        display: grid;
+        grid-template-columns: 190px minmax(0, 1fr) minmax(280px, 0.36fr);
+        gap: 16px;
+        min-height: 0;
+      }
+
+      .side-rail {
+        padding: 14px;
+        display: grid;
+        align-content: start;
+        gap: 10px;
+      }
+
+      .side-rail button {
+        min-height: 42px;
+        border: 0;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 0.42);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        font-weight: 800;
+      }
+
+      .side-rail button.active {
+        color: #0d4d93;
+        background: rgb(255 255 255 / 0.82);
+      }
+
+      .main-stage {
+        position: relative;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .scene-card {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+        gap: 18px;
+        padding: clamp(16px, 2vw, 26px);
+        opacity: 0;
+        transform: translateY(28px) scale(0.985);
+        transition: opacity 800ms ease, transform 900ms ease;
+      }
+
+      .scene-card.active {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      .scene-copy {
+        display: grid;
+        align-content: center;
+        gap: 16px;
+      }
+
+      .scene-copy small {
+        color: var(--blue);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .scene-copy h2 {
+        margin: 0;
+        font-size: clamp(28px, 5vw, 62px);
+        line-height: 1.02;
+      }
+
+      .scene-copy p {
+        max-width: 780px;
+        font-size: clamp(15px, 1.2vw, 20px);
+        line-height: 1.65;
+      }
+
+      .visual {
+        position: relative;
+        min-height: 0;
+        display: grid;
+        place-items: center;
+      }
+
+      .hud-grid {
+        width: min(100%, 720px);
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .hud-card {
+        padding: 14px;
+        min-height: 110px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .hud-card strong {
+        font-size: 30px;
+      }
+
+      .waterfall {
+        width: min(100%, 760px);
+        columns: 3 150px;
+        column-gap: 12px;
+      }
+
+      .sample-card {
+        display: inline-grid;
+        width: 100%;
+        margin-bottom: 12px;
+        overflow: hidden;
+        break-inside: avoid;
+        background: rgb(255 255 255 / 0.76);
+      }
+
+      .sample-card img {
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        display: block;
+      }
+
+      .sample-card div {
+        padding: 9px;
+        display: grid;
+        gap: 4px;
+      }
+
+      .phone {
+        width: min(320px, 100%);
+        aspect-ratio: 9 / 16;
+        padding: 12px;
+        display: grid;
+        grid-template-rows: 36px 1fr auto;
+        gap: 10px;
+        background: rgb(255 255 255 / 0.58);
+      }
+
+      .phone-bar,
+      .search-pill,
+      .mini-row,
+      .chat-line,
+      .ppt-line {
+        border-radius: 8px;
+        background: rgb(255 255 255 / 0.68);
+        border: var(--border);
+      }
+
+      .phone-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+      }
+
+      .phone img {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        object-fit: contain;
+        background: #fff;
+        border-radius: 8px;
+      }
+
+      .detail-mock {
+        width: min(100%, 760px);
+        display: grid;
+        grid-template-columns: 1fr 0.86fr;
+        gap: 12px;
+      }
+
+      .image-pair {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .image-pair img {
+        width: 100%;
+        aspect-ratio: 2 / 3;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .detail-info {
+        display: grid;
+        gap: 8px;
+      }
+
+      .mini-row {
+        min-height: 44px;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ppt-slide {
+        width: min(100%, 700px);
+        aspect-ratio: 16 / 9;
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 0.9fr 1fr;
+        gap: 16px;
+      }
+
+      .ppt-slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #fff;
+        border-radius: 8px;
+      }
+
+      .ppt-lines {
+        display: grid;
+        align-content: center;
+        gap: 10px;
+      }
+
+      .ppt-line {
+        min-height: 26px;
+      }
+
+      .right-panel {
+        display: grid;
+        gap: 12px;
+        grid-template-rows: auto 1fr;
+        min-height: 0;
+      }
+
+      .timeline {
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline h3 {
+        margin: 0;
+      }
+
+      .progress {
+        height: 10px;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.48);
+        overflow: hidden;
+      }
+
+      .progress i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #1f74c9, #86cfff);
+        border-radius: inherit;
+      }
+
+      .chapter-list {
+        padding: 14px;
+        overflow: auto;
+      }
+
+      .chapter-list ol {
+        list-style: none;
+        display: grid;
+        gap: 7px;
+        padding: 0;
+        margin: 0;
+      }
+
+      .chapter-list li {
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: var(--muted);
+        background: rgb(255 255 255 / 0.28);
+        font-size: 13px;
+      }
+
+      .chapter-list li.active {
+        color: #0d4d93;
+        background: rgb(255 255 255 / 0.78);
+        font-weight: 900;
+      }
+
+      .caption {
+        min-height: 108px;
+        padding: 14px 18px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .caption strong {
+        font-size: clamp(17px, 1.5vw, 22px);
+      }
+
+      .caption p {
+        font-size: clamp(14px, 1.1vw, 18px);
+        line-height: 1.45;
+      }
+
+      .search-pill {
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        gap: 10px;
+        font-weight: 800;
+      }
+
+      .chat-card {
+        width: min(100%, 560px);
+        display: grid;
+        gap: 10px;
+      }
+
+      .chat-line {
+        padding: 12px;
+      }
+
+      @media (max-width: 980px) {
+        body {
+          overflow: auto;
+        }
+
+        .tour {
+          min-height: auto;
+        }
+
+        .topbar,
+        .stage {
+          grid-template-columns: 1fr;
+        }
+
+        .topbar {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .main-stage {
+          min-height: 720px;
+        }
+
+        .side-rail {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .scene-card {
+          grid-template-columns: 1fr;
+          overflow: auto;
+        }
+
+        .right-panel {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="tour" data-duration="180">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">S</div>
+          <div>
+            <h1>舜天信兴样衣管理系统</h1>
+            <p>Sample Management System · 3 minute bilingual explainer</p>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="play" type="button">暂停 / Pause</button>
+          <button id="restart" type="button">重播 / Replay</button>
+          <a href="./samplefit-bilingual.vtt" download>字幕 VTT / Captions</a>
+          <a href="./samplefit-bilingual-script.json" download>脚本 JSON / Script</a>
+          <a href="../">返回系统 / Back</a>
+        </div>
+      </header>
+
+      <section class="stage">
+        <aside class="side-rail">
+          <button class="active" type="button">后台 / Admin</button>
+          <button type="button">前台 / Sales</button>
+          <button type="button">AI</button>
+          <button type="button">账单 / Billing</button>
+        </aside>
+
+        <section class="main-stage" id="stage" aria-live="polite"></section>
+
+        <aside class="right-panel">
+          <div class="glass timeline">
+            <h3>时间轴 / Timeline</h3>
+            <div class="progress"><i id="progress"></i></div>
+            <strong id="timecode">00:00 / 03:00</strong>
+          </div>
+          <div class="glass chapter-list">
+            <ol id="chapters"></ol>
+          </div>
+        </aside>
+      </section>
+
+      <footer class="caption">
+        <strong id="caption-title">系统总览 / System overview</strong>
+        <p id="caption-zh" class="subtitle-zh">中文</p>
+        <p id="caption-en" class="subtitle-en">English</p>
+      </footer>
+    </main>
+
+    <script>
+      const imageSet = [
+        "../design-images/sj-2607-021-front.jpg",
+        "../design-images/sj-2607-021-back.jpg",
+        "../design-images/sj-2607-028-front.jpg",
+        "../design-images/sj-2607-042-front.jpg",
+        "../design-images/sj-2607-049-front.jpg",
+        "../bulk-images/dh-2607-001-front.jpg"
+      ];
+      const duration = 180;
+      let scenes = [];
+      let startedAt = performance.now();
+      let pausedAt = 0;
+      let paused = false;
+      let activeIndex = -1;
+
+      const stage = document.getElementById("stage");
+      const chapters = document.getElementById("chapters");
+      const progress = document.getElementById("progress");
+      const timecode = document.getElementById("timecode");
+      const captionTitle = document.getElementById("caption-title");
+      const captionZh = document.getElementById("caption-zh");
+      const captionEn = document.getElementById("caption-en");
+      const playButton = document.getElementById("play");
+      const restartButton = document.getElementById("restart");
+
+      fetch("./samplefit-bilingual-script.json")
+        .then((response) => response.json())
+        .then((payload) => {
+          scenes = payload.scenes;
+          buildScenes();
+          requestAnimationFrame(tick);
+        });
+
+      playButton.addEventListener("click", () => {
+        paused = !paused;
+        if (paused) {
+          pausedAt = performance.now();
+          playButton.textContent = "继续 / Play";
+        } else {
+          startedAt += performance.now() - pausedAt;
+          playButton.textContent = "暂停 / Pause";
+          requestAnimationFrame(tick);
+        }
+      });
+
+      restartButton.addEventListener("click", () => {
+        startedAt = performance.now();
+        activeIndex = -1;
+        paused = false;
+        playButton.textContent = "暂停 / Pause";
+        requestAnimationFrame(tick);
+      });
+
+      function buildScenes() {
+        stage.innerHTML = scenes.map((scene, index) => renderScene(scene, index)).join("");
+        chapters.innerHTML = scenes
+          .map((scene, index) => `<li data-index="${index}">${time(scene.start)} ${scene.titleZh}<br>${scene.titleEn}</li>`)
+          .join("");
+      }
+
+      function renderScene(scene, index) {
+        const visual = [
+          overviewVisual(),
+          portalVisual(),
+          phoneVisual("前台登录 / Sign in", imageSet[0]),
+          waterfallVisual(),
+          visualSearchVisual(),
+          favoriteVisual(),
+          detailVisual(),
+          pptVisual(),
+          intakeVisual(),
+          aiVisual(),
+          billingVisual(),
+          analyticsVisual()
+        ][index] || overviewVisual();
+
+        return `
+          <article class="scene-card" data-scene="${index}">
+            <div class="scene-copy">
+              <small>${time(scene.start)} - ${time(scene.end)}</small>
+              <h2>${scene.titleZh}<br>${scene.titleEn}</h2>
+              <p>${scene.zh}</p>
+              <p>${scene.en}</p>
+            </div>
+            <div class="visual">${visual}</div>
+          </article>
+        `;
+      }
+
+      function overviewVisual() {
+        return `
+          <div class="hud-grid">
+            <div class="hud-card"><span>Online samples</span><strong>100</strong><span>设计样衣 + 大货样品</span></div>
+            <div class="hud-card"><span>AI credits</span><strong>1200</strong><span>补全、搜款、白底图</span></div>
+            <div class="hud-card"><span>Loan flow</span><strong>前台申请</strong><span>后台确认借出</span></div>
+            <div class="hud-card"><span>Billing</span><strong>业务组</strong><span>按周、月、年拉取</span></div>
+          </div>
+        `;
+      }
+
+      function portalVisual() {
+        return `
+          <div class="chat-card">
+            <div class="search-pill">中文 | English · AI 积分 1200</div>
+            <div class="mini-row"><strong>设计部后台</strong><span>入库 / 借还 / 账单 / 分析</span></div>
+            <div class="mini-row"><strong>业务前台</strong><span>瀑布流 / 收藏 / 推款 PPT</span></div>
+            <div class="mini-row"><strong>问问云知</strong><span>趋势 / 库位 / 报价 / 汇率</span></div>
+          </div>
+        `;
+      }
+
+      function phoneVisual(title, image) {
+        return `
+          <div class="phone">
+            <div class="phone-bar">${title}</div>
+            <img alt="" src="${image}" />
+            <div class="search-pill">姓名 · 业务组 · 手机</div>
+          </div>
+        `;
+      }
+
+      function waterfallVisual() {
+        return `<div class="waterfall">${imageSet
+          .concat(imageSet)
+          .map((src, index) => `<article class="sample-card"><img alt="" src="${src}" /><div><strong>SJ-2607-${String(index + 21).padStart(3, "0")}</strong><span>设计样衣 · 在库</span></div></article>`)
+          .join("")}</div>`;
+      }
+
+      function visualSearchVisual() {
+        return `
+          <div class="detail-mock">
+            <div class="phone"><div class="phone-bar">拍照搜款</div><img alt="" src="${imageSet[4]}" /><div class="search-pill">搜类似款</div></div>
+            <div class="detail-info">
+              <div class="mini-row"><strong>候选款 1</strong><span>92%</span></div>
+              <div class="mini-row"><strong>候选款 2</strong><span>87%</span></div>
+              <div class="mini-row"><strong>候选款 3</strong><span>81%</span></div>
+            </div>
+          </div>
+        `;
+      }
+
+      function favoriteVisual() {
+        return `
+          <div class="chat-card">
+            <div class="mini-row"><strong>♡ 收藏</strong><span>长期关注</span></div>
+            <div class="mini-row"><strong>✓ 已选</strong><span>当前客户推款</span></div>
+            <div class="mini-row"><strong>♥ 58</strong><span>收藏后热度增加</span></div>
+          </div>
+        `;
+      }
+
+      function detailVisual() {
+        return `
+          <div class="detail-mock">
+            <div class="image-pair"><img alt="" src="${imageSet[0]}" /><img alt="" src="${imageSet[1]}" /></div>
+            <div class="detail-info">
+              <div class="mini-row"><strong>吊牌价</strong><span>¥459</span></div>
+              <div class="mini-row"><strong>借样费</strong><span>¥34/次</span></div>
+              <div class="mini-row"><strong>库位</strong><span>SJ-02</span></div>
+              <div class="mini-row"><strong>近似款</strong><span>18 件</span></div>
+            </div>
+          </div>
+        `;
+      }
+
+      function pptVisual() {
+        return `
+          <div class="ppt-slide">
+            <img alt="" src="${imageSet[2]}" />
+            <div class="ppt-lines">
+              <h3>舜天信兴推款方案</h3>
+              <div class="ppt-line"></div><div class="ppt-line"></div><div class="ppt-line"></div>
+              <div class="mini-row"><strong>12 件样衣</strong><span>PPT 记录</span></div>
+            </div>
+          </div>
+        `;
+      }
+
+      function intakeVisual() {
+        return `
+          <div class="chat-card">
+            <div class="mini-row"><strong>款号</strong><span>SJ-2607-050</span></div>
+            <div class="mini-row"><strong>AI 补全</strong><span>品类 / 面料 / 标签</span></div>
+            <div class="mini-row"><strong>库位架杆</strong><span>设计部样衣间 SJ-08</span></div>
+            <div class="mini-row"><strong>标价</strong><span>¥399</span></div>
+          </div>
+        `;
+      }
+
+      function aiVisual() {
+        return `
+          <div class="chat-card">
+            <div class="chat-line"><strong>AI 白底图</strong><br>统一前台展示和客户推款图</div>
+            <div class="chat-line"><strong>拍图搜款</strong><br>用图片找同款和近似款</div>
+            <div class="chat-line"><strong>报价</strong><br>按数量、面料、工艺生成参考价</div>
+          </div>
+        `;
+      }
+
+      function billingVisual() {
+        return `
+          <div class="chat-card">
+            <div class="mini-row"><strong>借出</strong><span>业务一组 · 客户看样</span></div>
+            <div class="mini-row"><strong>归还</strong><span>自动恢复在库</span></div>
+            <div class="mini-row"><strong>报损</strong><span>丢失 / 损坏 / 淘汰</span></div>
+            <div class="mini-row"><strong>收费</strong><span>按规则计算</span></div>
+          </div>
+        `;
+      }
+
+      function analyticsVisual() {
+        return `
+          <div class="hud-grid">
+            <div class="hud-card"><span>Monthly bill</span><strong>¥8,420</strong><span>按业务组拉取</span></div>
+            <div class="hud-card"><span>Top style</span><strong>轻户外</strong><span>下季提前准备</span></div>
+            <div class="hud-card"><span>Top client</span><strong>欧洲</strong><span>品牌偏好分析</span></div>
+            <div class="hud-card"><span>Settings</span><strong>权限</strong><span>角色、图标、积分</span></div>
+          </div>
+        `;
+      }
+
+      function tick(now) {
+        if (paused || !scenes.length) {
+          return;
+        }
+        const elapsed = Math.min(duration, (now - startedAt) / 1000);
+        const sceneIndex = scenes.findIndex((scene) => elapsed >= scene.start && elapsed < scene.end);
+        const index = sceneIndex === -1 ? scenes.length - 1 : sceneIndex;
+        if (index !== activeIndex) {
+          activeIndex = index;
+          document.querySelectorAll(".scene-card").forEach((node) => node.classList.toggle("active", Number(node.dataset.scene) === index));
+          document.querySelectorAll(".chapter-list li").forEach((node) => node.classList.toggle("active", Number(node.dataset.index) === index));
+          const scene = scenes[index];
+          captionTitle.textContent = `${scene.titleZh} / ${scene.titleEn}`;
+          captionZh.textContent = scene.zh;
+          captionEn.textContent = scene.en;
+        }
+        progress.style.width = `${(elapsed / duration) * 100}%`;
+        timecode.textContent = `${time(elapsed)} / 03:00`;
+        if (elapsed < duration) {
+          requestAnimationFrame(tick);
+        } else {
+          paused = true;
+          playButton.textContent = "重播 / Replay";
+        }
+      }
+
+      function time(value) {
+        const seconds = Math.max(0, Math.floor(value));
+        const minutes = Math.floor(seconds / 60);
+        const rest = String(seconds % 60).padStart(2, "0");
+        return `${String(minutes).padStart(2, "0")}:${rest}`;
+      }
+    </script>
+  </body>
+</html>
