@@ -168,6 +168,8 @@
         position: relative;
         min-height: 0;
         overflow: hidden;
+        --cursor-x: 50%;
+        --cursor-y: 50%;
       }
 
       .scene-card {
@@ -185,6 +187,141 @@
       .scene-card.active {
         opacity: 1;
         transform: translateY(0) scale(1);
+      }
+
+      .motion-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        pointer-events: none;
+      }
+
+      .tour-cursor,
+      .click-ring,
+      .action-bubble {
+        position: absolute;
+        left: var(--cursor-x);
+        top: var(--cursor-y);
+      }
+
+      .tour-cursor {
+        width: 34px;
+        height: 34px;
+        transform: translate(-5px, -3px) rotate(-12deg);
+        transition: left 850ms cubic-bezier(0.2, 0.9, 0.2, 1), top 850ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        filter: drop-shadow(0 12px 20px rgb(18 48 78 / 0.32));
+      }
+
+      .tour-cursor::before {
+        content: "";
+        position: absolute;
+        width: 0;
+        height: 0;
+        border-top: 28px solid #0d4d93;
+        border-right: 15px solid transparent;
+        border-left: 5px solid transparent;
+      }
+
+      .tour-cursor::after {
+        content: "";
+        position: absolute;
+        left: 10px;
+        top: 20px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 3px solid #0d4d93;
+      }
+
+      .click-ring {
+        width: 62px;
+        height: 62px;
+        border-radius: 999px;
+        border: 3px solid rgb(31 116 201 / 0.72);
+        transform: translate(-31px, -31px) scale(0.62);
+        opacity: 0;
+      }
+
+      .main-stage.is-clicking .click-ring {
+        animation: clickPulse 1.4s ease-out infinite;
+      }
+
+      .main-stage.is-dragging .tour-cursor {
+        animation: dragNudge 1.8s ease-in-out infinite;
+      }
+
+      .action-bubble {
+        max-width: min(360px, 44vw);
+        transform: translate(22px, 20px);
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: var(--border);
+        background: rgb(255 255 255 / 0.86);
+        color: #123047;
+        box-shadow: 0 18px 50px rgb(50 79 105 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.72);
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1.4;
+        transition: left 850ms cubic-bezier(0.2, 0.9, 0.2, 1), top 850ms cubic-bezier(0.2, 0.9, 0.2, 1);
+      }
+
+      .action-bubble small {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .process-strip {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      .process-strip span {
+        min-height: 26px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 0 9px;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.52);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .process-strip span.active {
+        background: rgb(255 255 255 / 0.92);
+        color: #0d4d93;
+        box-shadow: inset 0 0 0 1px rgb(31 116 201 / 0.2);
+      }
+
+      @keyframes clickPulse {
+        0% {
+          opacity: 0.95;
+          transform: translate(-31px, -31px) scale(0.45);
+        }
+        82% {
+          opacity: 0;
+          transform: translate(-31px, -31px) scale(1.28);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-31px, -31px) scale(1.28);
+        }
+      }
+
+      @keyframes dragNudge {
+        0%,
+        100% {
+          transform: translate(-5px, -3px) rotate(-12deg);
+        }
+        50% {
+          transform: translate(30px, 18px) rotate(-12deg);
+        }
       }
 
       .scene-copy {
@@ -428,6 +565,17 @@
         gap: 6px;
       }
 
+      .action-caption {
+        width: fit-content;
+        max-width: 100%;
+        margin: 0;
+        padding: 7px 10px;
+        border-radius: 8px;
+        background: rgb(31 116 201 / 0.1);
+        color: #0d4d93;
+        font-weight: 900;
+      }
+
       .caption strong {
         font-size: clamp(17px, 1.5vw, 22px);
       }
@@ -495,7 +643,7 @@
     </style>
   </head>
   <body>
-    <main class="tour" data-duration="180">
+    <main class="tour" data-duration="180" data-motion-demo="process-click-tour">
       <header class="topbar">
         <div class="brand">
           <div class="brand-mark">S</div>
@@ -537,6 +685,7 @@
 
       <footer class="caption">
         <strong id="caption-title">系统总览 / System overview</strong>
+        <p id="actionCaption" class="action-caption">跟随光标查看操作步骤 / Follow the cursor to read each step</p>
         <p id="caption-zh" class="subtitle-zh">中文</p>
         <p id="caption-en" class="subtitle-en">English</p>
       </footer>
@@ -557,12 +706,14 @@
       let pausedAt = 0;
       let paused = false;
       let activeIndex = -1;
+      let activeActionKey = "";
 
       const stage = document.getElementById("stage");
       const chapters = document.getElementById("chapters");
       const progress = document.getElementById("progress");
       const timecode = document.getElementById("timecode");
       const captionTitle = document.getElementById("caption-title");
+      const actionCaption = document.getElementById("actionCaption");
       const captionZh = document.getElementById("caption-zh");
       const captionEn = document.getElementById("caption-en");
       const playButton = document.getElementById("play");
@@ -597,7 +748,14 @@
       });
 
       function buildScenes() {
-        stage.innerHTML = scenes.map((scene, index) => renderScene(scene, index)).join("");
+        stage.innerHTML = `
+          ${scenes.map((scene, index) => renderScene(scene, index)).join("")}
+          <div class="motion-layer" aria-hidden="true">
+            <span class="click-ring"></span>
+            <span class="tour-cursor"></span>
+            <span class="action-bubble" id="motionBubble"></span>
+          </div>
+        `;
         chapters.innerHTML = scenes
           .map((scene, index) => `<li data-index="${index}">${time(scene.start)} ${scene.titleZh}<br>${scene.titleEn}</li>`)
           .join("");
@@ -626,9 +784,22 @@
               <h2>${scene.titleZh}<br>${scene.titleEn}</h2>
               <p>${scene.zh}</p>
               <p>${scene.en}</p>
+              ${renderProcessStrip(scene)}
             </div>
             <div class="visual">${visual}</div>
           </article>
+        `;
+      }
+
+      function renderProcessStrip(scene) {
+        const actions = scene.actions || [];
+        if (!actions.length) {
+          return "";
+        }
+        return `
+          <div class="process-strip">
+            ${actions.map((action, index) => `<span data-action-step="${index}">${index + 1}. ${action.labelEn}</span>`).join("")}
+          </div>
         `;
       }
 
@@ -773,6 +944,7 @@
         const index = sceneIndex === -1 ? scenes.length - 1 : sceneIndex;
         if (index !== activeIndex) {
           activeIndex = index;
+          activeActionKey = "";
           document.querySelectorAll(".scene-card").forEach((node) => node.classList.toggle("active", Number(node.dataset.scene) === index));
           document.querySelectorAll(".chapter-list li").forEach((node) => node.classList.toggle("active", Number(node.dataset.index) === index));
           const scene = scenes[index];
@@ -780,6 +952,7 @@
           captionZh.textContent = scene.zh;
           captionEn.textContent = scene.en;
         }
+        updateAction(index, elapsed);
         progress.style.width = `${(elapsed / duration) * 100}%`;
         timecode.textContent = `${time(elapsed)} / 03:00`;
         if (elapsed < duration) {
@@ -787,6 +960,40 @@
         } else {
           paused = true;
           playButton.textContent = "重播 / Replay";
+        }
+      }
+
+      function updateAction(index, elapsed) {
+        const scene = scenes[index];
+        const actions = scene.actions || [];
+        if (!actions.length) {
+          stage.classList.remove("is-clicking", "is-dragging");
+          actionCaption.textContent = "跟随光标查看操作步骤 / Follow the cursor to read each step";
+          return;
+        }
+
+        const sceneDuration = Math.max(1, scene.end - scene.start);
+        const sceneProgress = Math.max(0, Math.min(0.999, (elapsed - scene.start) / sceneDuration));
+        const actionIndex = Math.min(actions.length - 1, Math.floor(sceneProgress * actions.length));
+        const action = actions[actionIndex];
+        const actionKey = `${index}:${actionIndex}`;
+
+        stage.style.setProperty("--cursor-x", `${action.x}%`);
+        stage.style.setProperty("--cursor-y", `${action.y}%`);
+        stage.classList.toggle("is-clicking", action.type === "click");
+        stage.classList.toggle("is-dragging", action.type === "drag");
+
+        document.querySelectorAll(".scene-card.active [data-action-step]").forEach((node) => {
+          node.classList.toggle("active", Number(node.dataset.actionStep) === actionIndex);
+        });
+
+        if (actionKey !== activeActionKey) {
+          activeActionKey = actionKey;
+          actionCaption.textContent = `${action.labelZh} / ${action.labelEn}`;
+          const bubble = document.getElementById("motionBubble");
+          if (bubble) {
+            bubble.innerHTML = `${action.labelZh}<small>${action.labelEn}</small>`;
+          }
         }
       }
 

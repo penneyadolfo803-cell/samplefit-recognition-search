@@ -9,7 +9,23 @@
       "titleZh": "系统总览",
       "titleEn": "System overview",
       "zh": "舜天信兴样衣管理系统把设计样衣、大货样品、图片、借出、费用和 AI 能力放在同一个网页里，客户和内部团队可以从同一套数据协作。",
-      "en": "The Suntien Xinxing Sample Management System brings design samples, bulk samples, images, loans, fees, and AI tools into one web platform for client-facing and internal collaboration."
+      "en": "The Suntien Xinxing Sample Management System brings design samples, bulk samples, images, loans, fees, and AI tools into one web platform for client-facing and internal collaboration.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 58,
+          "y": 34,
+          "labelZh": "查看在线样衣、借出和待处理数据",
+          "labelEn": "Review online samples, loans, and pending requests"
+        },
+        {
+          "type": "click",
+          "x": 78,
+          "y": 54,
+          "labelZh": "确认 AI 积分和核心能力入口",
+          "labelEn": "Check AI credits and core AI entry points"
+        }
+      ]
     },
     {
       "start": 15,
@@ -17,7 +33,23 @@
       "titleZh": "双入口和双语界面",
       "titleEn": "Two portals and bilingual UI",
       "zh": "右上角可以切换中文和 English。左侧进入设计部后台或业务前台，后台管理样衣，前台用于业务员看款、收藏、选择和申请借样。",
-      "en": "The top-right language switch toggles Chinese and English. The left side separates Design Admin from Sales Desk, so admin manages inventory while sales users browse, favorite, select, and request loans."
+      "en": "The top-right language switch toggles Chinese and English. The left side separates Design Admin from Sales Desk, so admin manages inventory while sales users browse, favorite, select, and request loans.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 70,
+          "y": 22,
+          "labelZh": "切换中文和 English 界面",
+          "labelEn": "Switch between Chinese and English"
+        },
+        {
+          "type": "click",
+          "x": 42,
+          "y": 52,
+          "labelZh": "从左侧进入业务前台",
+          "labelEn": "Enter the Sales Desk from the left menu"
+        }
+      ]
     },
     {
       "start": 30,
@@ -25,7 +57,23 @@
       "titleZh": "业务前台登录",
       "titleEn": "Sales desk sign-in",
       "zh": "业务员先从前台入口登录，系统记录姓名、业务组和手机号。之后生成的借样申请、PPT 记录和费用账单都会归到个人中心。",
-      "en": "Sales users sign in with name, business team, and phone number. Loan requests, generated PPT files, and fee bills are then attached to the personal center."
+      "en": "Sales users sign in with name, business team, and phone number. Loan requests, generated PPT files, and fee bills are then attached to the personal center.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 50,
+          "y": 24,
+          "labelZh": "业务员填写姓名和业务组登录",
+          "labelEn": "Sales user signs in with name and team"
+        },
+        {
+          "type": "click",
+          "x": 52,
+          "y": 82,
+          "labelZh": "提交后生成个人中心记录",
+          "labelEn": "Submit to create personal records"
+        }
+      ]
     },
     {
       "start": 45,
@@ -33,7 +81,23 @@
       "titleZh": "瀑布流看款",
       "titleEn": "Waterfall browsing",
       "zh": "前台采用瀑布流浏览，支持按全部样衣、设计样衣、大货样品切换，也可以筛选在库、收藏和已选。顶部搜索用于快速查款号、品类、颜色和面料。",
-      "en": "The sales desk uses a waterfall layout. Users can switch between all, design, and bulk samples, filter by availability, favorites, or selected items, and search SKU, category, color, or fabric."
+      "en": "The sales desk uses a waterfall layout. Users can switch between all, design, and bulk samples, filter by availability, favorites, or selected items, and search SKU, category, color, or fabric.",
+      "actions": [
+        {
+          "type": "drag",
+          "x": 54,
+          "y": 44,
+          "labelZh": "瀑布流上下浏览样衣",
+          "labelEn": "Scroll the waterfall sample feed"
+        },
+        {
+          "type": "click",
+          "x": 31,
+          "y": 18,
+          "labelZh": "筛选设计样衣、大货样品或在库款",
+          "labelEn": "Filter design, bulk, or available samples"
+        }
+      ]
     },
     {
       "start": 60,
@@ -41,7 +105,23 @@
       "titleZh": "拍照搜款",
       "titleEn": "Visual search",
       "zh": "搜索框右侧的相机图标支持拍照或上传图片搜类似款。系统只在当前业务前台可见的样衣范围内展示候选款，方便现场给客户找同款或近似款。",
-      "en": "The camera icon beside search opens photo or image upload search. Results are limited to samples visible in the current sales desk, making it easier to find same or similar styles during client meetings."
+      "en": "The camera icon beside search opens photo or image upload search. Results are limited to samples visible in the current sales desk, making it easier to find same or similar styles during client meetings.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 39,
+          "y": 25,
+          "labelZh": "点击搜索框右侧相机图标",
+          "labelEn": "Click the camera icon beside search"
+        },
+        {
+          "type": "click",
+          "x": 64,
+          "y": 74,
+          "labelZh": "上传图片后查看相似度排序",
+          "labelEn": "Upload an image and review similarity ranking"
+        }
+      ]
     },
     {
       "start": 75,
@@ -49,7 +129,23 @@
       "titleZh": "收藏、选择和点赞",
       "titleEn": "Favorite, select, and likes",
       "zh": "小爱心代表收藏，也会带动下方热度数字。勾选按钮代表加入推款清单，两套状态互不混淆：收藏用于长期关注，已选用于当前客户推款。",
-      "en": "The heart is for favorites and increases the visible popularity count. The check mark adds items to the pitch list. Favorites are for long-term interest; selected items are for the current client pitch."
+      "en": "The heart is for favorites and increases the visible popularity count. The check mark adds items to the pitch list. Favorites are for long-term interest; selected items are for the current client pitch.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 42,
+          "y": 36,
+          "labelZh": "点击小爱心收藏并增加热度",
+          "labelEn": "Tap the heart to favorite and increase popularity"
+        },
+        {
+          "type": "click",
+          "x": 56,
+          "y": 54,
+          "labelZh": "勾选加入本次推款清单",
+          "labelEn": "Check the item into the current pitch list"
+        }
+      ]
     },
     {
       "start": 90,
@@ -57,7 +153,23 @@
       "titleZh": "样衣详情和近似款",
       "titleEn": "Details and recommendations",
       "zh": "点开任意款式后，左侧查看正面和背面白底图，右侧查看吊牌价、借样费、尺码、库位和架杆。下方会按品类、颜色、标签推荐更接近的近似款。",
-      "en": "Opening a sample shows front and back white-background images on the left, and price, loan fee, size, location, and rack on the right. Similar recommendations below are based on category, color, and tags."
+      "en": "Opening a sample shows front and back white-background images on the left, and price, loan fee, size, location, and rack on the right. Similar recommendations below are based on category, color, and tags.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 36,
+          "y": 42,
+          "labelZh": "打开款式详情页查看大图",
+          "labelEn": "Open the style detail page for large images"
+        },
+        {
+          "type": "click",
+          "x": 54,
+          "y": 42,
+          "labelZh": "切换正面和背面白底图",
+          "labelEn": "Switch between front and back white-background images"
+        }
+      ]
     },
     {
       "start": 105,
@@ -65,7 +177,23 @@
       "titleZh": "一键生成推款 PPT",
       "titleEn": "One-click pitch PPT",
       "zh": "多选样衣后，点击右上角推款 PPT，系统会自动生成包含封面、款号、图片、面料和标签的客户推款文件，同时在我的里留下 PPT 记录。",
-      "en": "After selecting samples, the Pitch PPT button generates a client-ready presentation with cover, SKU, images, fabric, and tags, then records the file in My Center."
+      "en": "After selecting samples, the Pitch PPT button generates a client-ready presentation with cover, SKU, images, fabric, and tags, then records the file in My Center.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 70,
+          "y": 78,
+          "labelZh": "点击右上角推款 PPT",
+          "labelEn": "Click Pitch PPT in the top-right"
+        },
+        {
+          "type": "click",
+          "x": 58,
+          "y": 64,
+          "labelZh": "确认 PPT 记录进入我的中心",
+          "labelEn": "Confirm the PPT record in My Center"
+        }
+      ]
     },
     {
       "start": 120,
@@ -73,7 +201,23 @@
       "titleZh": "设计部后台入库",
       "titleEn": "Design admin intake",
       "zh": "设计部后台可以录入设计样衣和大货样品。入库时维护款号、品类、面料、价格、库位和架杆，AI 补全可以根据图片和已有字段快速补资料。",
-      "en": "Design Admin can intake design samples and bulk samples. During intake, teams maintain SKU, category, fabric, price, storage location, and rack, while AI completion accelerates field entry from image and context."
+      "en": "Design Admin can intake design samples and bulk samples. During intake, teams maintain SKU, category, fabric, price, storage location, and rack, while AI completion accelerates field entry from image and context.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 34,
+          "y": 28,
+          "labelZh": "后台点击新增样衣或大货录入",
+          "labelEn": "Click New or Bulk intake in admin"
+        },
+        {
+          "type": "click",
+          "x": 52,
+          "y": 48,
+          "labelZh": "用 AI 补全品类、面料、标签和价格",
+          "labelEn": "Use AI to complete category, fabric, tags, and price"
+        }
+      ]
     },
     {
       "start": 135,
@@ -81,7 +225,23 @@
       "titleZh": "AI 图片和报价",
       "titleEn": "AI images and quoting",
       "zh": "AI 白底模特图用于统一展示效果，拍图搜款用于检索同款或相似款，报价功能可以按数量、面料和工艺生成一件报价或批量报价参考。",
-      "en": "AI white-background model images keep presentation consistent, visual search finds same or similar samples, and quoting can estimate one-piece or bulk prices using quantity, fabric, and process assumptions."
+      "en": "AI white-background model images keep presentation consistent, visual search finds same or similar samples, and quoting can estimate one-piece or bulk prices using quantity, fabric, and process assumptions.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 44,
+          "y": 34,
+          "labelZh": "生成统一白底模特图",
+          "labelEn": "Generate consistent white-background model images"
+        },
+        {
+          "type": "click",
+          "x": 55,
+          "y": 72,
+          "labelZh": "输入数量和工艺生成参考报价",
+          "labelEn": "Enter quantity and process details for a quote"
+        }
+      ]
     },
     {
       "start": 150,
@@ -89,7 +249,23 @@
       "titleZh": "借还、报损和计费",
       "titleEn": "Loans, loss reports, and fees",
       "zh": "样衣管理员在后台处理借出、归还和报损。报损原因包括丢失、损坏和年久淘汰。借样费用可按吊牌价和业务组收费规则自动计算。",
-      "en": "Sample administrators handle loans, returns, and loss reports in the back office. Loss reasons include lost, damaged, and retired. Loan fees can be calculated from retail price and editable team charging rules."
+      "en": "Sample administrators handle loans, returns, and loss reports in the back office. Loss reasons include lost, damaged, and retired. Loan fees can be calculated from retail price and editable team charging rules.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 50,
+          "y": 24,
+          "labelZh": "前台提交借样申请",
+          "labelEn": "Sales desk submits a loan request"
+        },
+        {
+          "type": "click",
+          "x": 58,
+          "y": 64,
+          "labelZh": "后台确认借出、归还或报损",
+          "labelEn": "Admin confirms loan, return, or loss report"
+        }
+      ]
     },
     {
       "start": 165,
@@ -97,7 +273,23 @@
       "titleZh": "账单分析和系统配置",
       "titleEn": "Billing analytics and settings",
       "zh": "后台可以按年、月、周和业务组拉取账单，分析哪个业务员、哪个客户、什么风格借用最多。系统配置支持名称、图标、背景、AI 积分和角色权限维护。",
-      "en": "Admin can pull bills by year, month, week, and team, then analyze which salesperson, client, and style direction borrows the most. Settings cover names, icons, backgrounds, AI credits, and role permissions."
+      "en": "Admin can pull bills by year, month, week, and team, then analyze which salesperson, client, and style direction borrows the most. Settings cover names, icons, backgrounds, AI credits, and role permissions.",
+      "actions": [
+        {
+          "type": "click",
+          "x": 41,
+          "y": 35,
+          "labelZh": "按业务组拉取周、月、年账单",
+          "labelEn": "Pull weekly, monthly, or yearly bills by team"
+        },
+        {
+          "type": "click",
+          "x": 68,
+          "y": 62,
+          "labelZh": "用分析结果准备下一季样衣",
+          "labelEn": "Use analytics to prepare next-season samples"
+        }
+      ]
     }
   ]
 }
