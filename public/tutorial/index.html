@@ -280,20 +280,22 @@
         margin-top: 8px;
       }
 
-      .process-strip span {
+      .process-strip button {
         min-height: 26px;
         display: inline-flex;
         align-items: center;
         gap: 5px;
         padding: 0 9px;
+        border: 0;
         border-radius: 999px;
         background: rgb(255 255 255 / 0.52);
         color: var(--muted);
         font-size: 12px;
         font-weight: 800;
+        cursor: pointer;
       }
 
-      .process-strip span.active {
+      .process-strip button.active {
         background: rgb(255 255 255 / 0.92);
         color: #0d4d93;
         box-shadow: inset 0 0 0 1px rgb(31 116 201 / 0.2);
@@ -550,6 +552,7 @@
         color: var(--muted);
         background: rgb(255 255 255 / 0.28);
         font-size: 13px;
+        cursor: pointer;
       }
 
       .chapter-list li.active {
@@ -655,6 +658,8 @@
         <div class="controls">
           <button id="play" type="button">暂停 / Pause</button>
           <button id="restart" type="button">重播 / Replay</button>
+          <button id="prevStep" type="button">上一步 / Prev</button>
+          <button id="nextStep" type="button">下一步 / Next</button>
           <a href="./samplefit-bilingual.vtt" download>字幕 VTT / Captions</a>
           <a href="./samplefit-bilingual-script.json" download>脚本 JSON / Script</a>
           <a href="../">返回系统 / Back</a>
@@ -718,6 +723,8 @@
       const captionEn = document.getElementById("caption-en");
       const playButton = document.getElementById("play");
       const restartButton = document.getElementById("restart");
+      const prevStepButton = document.getElementById("prevStep");
+      const nextStepButton = document.getElementById("nextStep");
 
       fetch("./samplefit-bilingual-script.json")
         .then((response) => response.json())
@@ -747,6 +754,44 @@
         requestAnimationFrame(tick);
       });
 
+      prevStepButton.addEventListener("click", () => {
+        const current = currentElapsed();
+        const steps = allSteps();
+        if (!steps.length) {
+          return;
+        }
+        const currentStep = stepAtTime(current);
+        const target = steps[Math.max(0, currentStep.globalIndex - 1)];
+        goToStep(target.time);
+      });
+
+      nextStepButton.addEventListener("click", () => {
+        const current = currentElapsed();
+        const steps = allSteps();
+        if (!steps.length) {
+          return;
+        }
+        const currentStep = stepAtTime(current);
+        const target = steps[Math.min(steps.length - 1, currentStep.globalIndex + 1)];
+        goToStep(target.time);
+      });
+
+      stage.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-step-jump]");
+        if (!target) {
+          return;
+        }
+        goToStep(Number(target.dataset.stepJump || 0));
+      });
+
+      chapters.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-step-jump]");
+        if (!target) {
+          return;
+        }
+        goToStep(Number(target.dataset.stepJump || 0));
+      });
+
       function buildScenes() {
         stage.innerHTML = `
           ${scenes.map((scene, index) => renderScene(scene, index)).join("")}
@@ -757,23 +802,26 @@
           </div>
         `;
         chapters.innerHTML = scenes
-          .map((scene, index) => `<li data-index="${index}">${time(scene.start)} ${scene.titleZh}<br>${scene.titleEn}</li>`)
+          .map(
+            (scene, index) =>
+              `<li data-index="${index}" data-step-jump="${scene.start + 0.1}" role="button" tabindex="0">${time(scene.start)} ${scene.titleZh}<br>${scene.titleEn}</li>`
+          )
           .join("");
       }
 
       function renderScene(scene, index) {
         const visual = [
-          overviewVisual(),
-          portalVisual(),
+          customerMeetingVisual(),
           phoneVisual("前台登录 / Sign in", imageSet[0]),
           waterfallVisual(),
           visualSearchVisual(),
           favoriteVisual(),
           detailVisual(),
           pptVisual(),
+          loanRequestVisual(),
+          loanAdminVisual(),
           intakeVisual(),
           aiVisual(),
-          billingVisual(),
           analyticsVisual()
         ][index] || overviewVisual();
 
@@ -798,7 +846,30 @@
         }
         return `
           <div class="process-strip">
-            ${actions.map((action, index) => `<span data-action-step="${index}">${index + 1}. ${action.labelEn}</span>`).join("")}
+            ${actions
+              .map((action, index) => {
+                const stepTime = scene.start + ((scene.end - scene.start) / actions.length) * index + 0.1;
+                return `<button data-action-step="${index}" data-step-jump="${stepTime}" type="button">${index + 1}. ${action.labelEn}</button>`;
+              })
+              .join("")}
+          </div>
+        `;
+      }
+
+      function customerMeetingVisual() {
+        return `
+          <div class="detail-mock">
+            <div class="chat-card">
+              <div class="mini-row"><strong>客户需求</strong><span>欧洲市场</span></div>
+              <div class="mini-row"><strong>风格方向</strong><span>轻户外 / 浅色系</span></div>
+              <div class="mini-row"><strong>参考图片</strong><span>现场上传搜款</span></div>
+              <div class="mini-row"><strong>业务目标</strong><span>马上找可借可推款</span></div>
+            </div>
+            <div class="phone">
+              <div class="phone-bar">Client Meeting</div>
+              <img alt="" src="${imageSet[4]}" />
+              <div class="search-pill">客户参考图 / Reference</div>
+            </div>
           </div>
         `;
       }
@@ -892,6 +963,35 @@
         `;
       }
 
+      function loanRequestVisual() {
+        return `
+          <div class="detail-mock">
+            <div class="chat-card">
+              <div class="mini-row"><strong>借用用途</strong><span>客户看样</span></div>
+              <div class="mini-row"><strong>预计归还</strong><span>7 天后</span></div>
+              <div class="mini-row"><strong>备注</strong><span>欧洲客户会议</span></div>
+              <div class="mini-row"><strong>提交状态</strong><span>进入后台待处理</span></div>
+            </div>
+            <div class="phone">
+              <div class="phone-bar">Loan request</div>
+              <img alt="" src="${imageSet[0]}" />
+              <div class="search-pill">申请当前样衣</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function loanAdminVisual() {
+        return `
+          <div class="chat-card">
+            <div class="mini-row"><strong>待处理申请</strong><span>业务一组 / 客户看样</span></div>
+            <div class="mini-row"><strong>库位架杆</strong><span>设计部样衣间 SJ-02</span></div>
+            <div class="mini-row"><strong>操作</strong><span>确认借出 / 归还 / 报损</span></div>
+            <div class="mini-row"><strong>费用</strong><span>自动进入业务组账单</span></div>
+          </div>
+        `;
+      }
+
       function intakeVisual() {
         return `
           <div class="chat-card">
@@ -933,6 +1033,49 @@
             <div class="hud-card"><span>Settings</span><strong>权限</strong><span>角色、图标、积分</span></div>
           </div>
         `;
+      }
+
+      function allSteps() {
+        return scenes.flatMap((scene, sceneIndex) => {
+          const actions = scene.actions || [];
+          if (!actions.length) {
+            return [{ sceneIndex, actionIndex: 0, time: scene.start + 0.1 }];
+          }
+          const span = (scene.end - scene.start) / actions.length;
+          return actions.map((action, actionIndex) => ({
+            sceneIndex,
+            actionIndex,
+            time: scene.start + span * actionIndex + 0.1,
+            action
+          }));
+        });
+      }
+
+      function currentElapsed() {
+        return Math.max(0, Math.min(duration, (performance.now() - startedAt) / 1000));
+      }
+
+      function goToStep(targetSeconds) {
+        startedAt = performance.now() - Math.max(0, Math.min(duration - 0.1, targetSeconds)) * 1000;
+        activeIndex = -1;
+        activeActionKey = "";
+        paused = false;
+        playButton.textContent = "暂停 / Pause";
+        requestAnimationFrame(tick);
+      }
+
+      function stepAtTime(elapsed) {
+        const steps = allSteps();
+        if (!steps.length) {
+          return { sceneIndex: 0, actionIndex: 0, time: 0, globalIndex: 0 };
+        }
+        let globalIndex = 0;
+        for (let index = 0; index < steps.length; index += 1) {
+          if (steps[index].time <= elapsed + 0.3) {
+            globalIndex = index;
+          }
+        }
+        return { ...steps[globalIndex], globalIndex };
       }
 
       function tick(now) {

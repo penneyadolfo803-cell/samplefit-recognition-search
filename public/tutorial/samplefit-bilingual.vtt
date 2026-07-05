@@ -1,49 +1,49 @@
 WEBVTT
 
 00:00.000 --> 00:15.000
-舜天信兴样衣管理系统把设计样衣、大货样品、图片、借出、费用和 AI 能力放在同一个网页里。
-The Sample Management System brings design samples, bulk samples, images, loans, fees, and AI tools into one web platform.
+舜天信兴样衣管理系统从客户会议开始：客户提出欧洲市场、轻户外、浅色系，并给出参考图。业务员直接打开业务前台找可借可推的款。
+The Suntien Xinxing Sample Management System starts from a client meeting: the buyer asks for European-market, light outdoor, pale-color styles and provides a reference image.
 
 00:15.000 --> 00:30.000
-右上角可以切换中文和 English；左侧进入设计部后台或业务前台。
-The top-right switch toggles Chinese and English; the left side separates Design Admin from Sales Desk.
+业务员用姓名、业务组和手机号登录。后续收藏、已选、PPT、借样申请和费用账单都会归到个人和业务组。
+The salesperson signs in with name, team, and phone number. Favorites, selections, PPT records, loan requests, and bills are tied to that person and team.
 
 00:30.000 --> 00:45.000
-业务员登录后，借样申请、PPT 记录和费用账单都会归到个人中心。
-After sales sign-in, loan requests, PPT records, and fee bills are linked to the personal center.
+业务员按客户需求筛选设计样衣和大货样品，查看在库、季节、品类和颜色，让客户快速看到可推款。
+Sales filters design and bulk samples by availability, season, category, and color so the client quickly sees pitch-ready styles.
 
 00:45.000 --> 01:00.000
-前台用瀑布流浏览，支持按样衣来源、在库、收藏和已选筛选。
-The sales desk uses a waterfall browser with filters for source, availability, favorites, and selected items.
+客户给参考图时，业务员点击相机上传图片，系统在可见样衣里找相似款并按匹配度排序。
+When the client gives a reference, sales clicks the camera, uploads the image, and the system ranks similar visible samples.
 
 01:00.000 --> 01:15.000
-搜索框右侧相机图标支持拍照或上传图片搜类似款。
-The camera icon beside search supports photo or image upload for similar-style search.
+点爱心代表收藏客户感兴趣的款，勾选代表加入本次推款清单，两套状态分别服务长期关注和当前客户。
+The heart favorites styles the client likes; the check mark adds items to this pitch list. The two states serve different purposes.
 
 01:15.000 --> 01:30.000
-小爱心用于收藏并增加热度，勾选用于加入当前客户推款清单。
-The heart favorites an item and raises its popularity count; the check mark adds it to the current pitch list.
+详情页展示正面、背面、价格、借样费、尺码、库位和架杆，也推荐同品类近似款。
+The detail page shows front and back images, price, loan fee, size, location, rack, and similar styles in the same category.
 
 01:30.000 --> 01:45.000
-详情页查看正面、背面、价格、借样费、尺码、库位和近似款推荐。
-The detail page shows front and back images, price, loan fee, size, location, and similar recommendations.
+业务员多选后点击推款 PPT，系统自动生成客户可看的推款文件，并在我的中心留下记录。
+After multi-selecting styles, sales clicks Pitch PPT. The system creates a client-ready presentation and stores the record in My Center.
 
 01:45.000 --> 02:00.000
-多选样衣后，一键生成带图片和款式资料的推款 PPT。
-After selecting samples, one click generates a pitch PPT with images and style information.
+客户想看实物时，业务员填写借用用途、预计归还时间和备注，提交借样申请到设计部后台。
+When the client wants physical samples, sales fills purpose, return date, and notes, then submits a request to Design Admin.
 
 02:00.000 --> 02:15.000
-设计部后台录入设计样衣和大货样品，AI 可快速补全字段。
-Design Admin intakes design and bulk samples, and AI can quickly complete missing fields.
+样衣管理员在后台处理申请，按库位和架杆找样衣，确认借出；归还、丢失、损坏和淘汰都有记录。
+The sample admin handles the request, finds items by location and rack, confirms the loan, and records returns, loss, damage, or retirement.
 
 02:15.000 --> 02:30.000
-AI 白底图、拍图搜款和报价功能帮助统一展示、检索同款并生成报价参考。
-AI white-background images, visual search, and quoting help standardize presentation, find similar styles, and estimate prices.
+设计师上传正背面图，用 AI 生成白底图和补全字段，再填写价格、库位和架杆，新款入库后前台可见。
+The designer uploads front and back images, uses AI for white-background images and field completion, then sets price, location, and rack.
 
 02:30.000 --> 02:45.000
-样衣管理员处理借出、归还和报损，费用按规则自动计算。
-Administrators handle loans, returns, and loss reports, while fees are calculated by editable rules.
+问问云知可以回答趋势、报价、汇率和在库样衣问题，把 AI 放进业务员、设计师和样衣管理员的日常工作。
+Ask Yunzhi answers trends, quotes, exchange rates, and inventory questions, putting AI into daily work for sales, designers, and admins.
 
 02:45.000 --> 03:00.000
-后台按年、月、周和业务组拉取账单，并分析客户偏好与样衣准备方向。
-Admin pulls bills by year, month, week, and team, then analyzes client demand for next-season preparation.
+管理层按业务组拉取周、月、年账单，分析客户和风格偏好，用数据提前准备下一季样衣。
+Management pulls weekly, monthly, and yearly bills by team, analyzes client and style preferences, and prepares next-season samples from data.
