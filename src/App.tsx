@@ -179,15 +179,15 @@ const tabLabels: Record<TabId, Record<Locale, string>> = {
 };
 
 const tabTitles: Record<TabId, Record<Locale, string>> = {
-  library: { zh: "在线样衣资料库", en: "Online Sample Library" },
-  entry: { zh: "样衣录入与维护", en: "Sample Intake and Maintenance" },
-  bulk: { zh: "业务组大货录入", en: "Bulk Goods Intake" },
-  borrow: { zh: "样衣借还", en: "Sample Loan and Return" },
-  billing: { zh: "账单拉取", en: "Billing Pull" },
-  analytics: { zh: "数据分析", en: "Borrowing Analytics" },
-  ai: { zh: "识别检索与自动报价", en: "Visual Search and Auto Quote" },
-  designerMe: { zh: "设计师个人中心", en: "Designer Center" },
-  settings: { zh: "系统配置与权限", en: "System Settings and Permissions" }
+  library: { zh: "在线样衣资料库", en: "Samples" },
+  entry: { zh: "样衣录入与维护", en: "Intake" },
+  bulk: { zh: "业务组大货录入", en: "Bulk Samples" },
+  borrow: { zh: "样衣借还", en: "Loans" },
+  billing: { zh: "账单拉取", en: "Billing" },
+  analytics: { zh: "数据分析", en: "Analytics" },
+  ai: { zh: "识别检索与自动报价", en: "AI Search" },
+  designerMe: { zh: "设计师个人中心", en: "My Studio" },
+  settings: { zh: "系统配置与权限", en: "Settings" }
 };
 
 const statusLabels: Record<Sample["status"], Record<Locale, string>> = {
@@ -1279,17 +1279,17 @@ function App() {
                 {ui(language, "讲解动画", "Tour")}
               </button>
               <button className="assistant-trigger" onClick={() => setShowYunzhiAssistant(true)} type="button">
-                <img alt={ui(language, "问问云知", "Ask Yunzhi")} src="./yunzhi-avatar.png" />
-                {ui(language, "问问云知", "Ask Yunzhi")}
+                <img alt={ui(language, "问问云知", "Yunzhi")} src="./yunzhi-avatar.png" />
+                {ui(language, "问问云知", "Yunzhi")}
               </button>
               <div className="credit-pill">
                 <Coins size={16} />
-                <span>{ui(language, "AI 积分剩余", "AI credits")}</span>
+                <span>{ui(language, "AI 积分剩余", "Credits")}</span>
                 <strong>{aiCreditsRemaining}</strong>
               </div>
               <button className="ghost" onClick={() => setTab("designerMe")} type="button">
                 <UserRound size={16} />
-                {currentDesigner}
+                {ui(language, currentDesigner, "My Studio")}
               </button>
               <button className="ghost" onClick={() => void reload()} type="button">
                 <RotateCcw size={16} />
@@ -1297,11 +1297,11 @@ function App() {
               </button>
               <button onClick={startCreate} type="button">
                 <PackagePlus size={16} />
-                {ui(language, "新增样衣", "New sample")}
+                {ui(language, "新增样衣", "New")}
               </button>
               <button className="ghost" onClick={() => startBulkCreate()} type="button">
                 <Boxes size={16} />
-                {ui(language, "大货录入", "Bulk intake")}
+                {ui(language, "大货录入", "Bulk")}
               </button>
             </div>
           </header>
@@ -1311,12 +1311,12 @@ function App() {
 
         {portalMode === "admin" && (
           <section className="metrics">
-            <Metric icon={Boxes} label={ui(language, "在线样衣", "Online samples")} value={metrics.total} />
-            <Metric icon={Database} label={ui(language, "大货样品", "Bulk samples")} value={metrics.bulk} />
+            <Metric icon={Boxes} label={ui(language, "在线样衣", "Samples")} value={metrics.total} />
+            <Metric icon={Database} label={ui(language, "大货样品", "Bulk")} value={metrics.bulk} />
             <Metric icon={BadgeCheck} label={ui(language, "可借在库", "Available")} value={metrics.inStock} />
-            <Metric icon={Archive} label={ui(language, "当前借出", "On loan")} value={metrics.borrowed} />
-            <Metric icon={AlertTriangle} label={ui(language, "报损样衣", "Loss reports")} value={metrics.damaged} />
-            <Metric icon={ClipboardList} label={ui(language, "待处理申请", "Pending requests")} value={metrics.requests} />
+            <Metric icon={Archive} label={ui(language, "当前借出", "Loaned")} value={metrics.borrowed} />
+            <Metric icon={AlertTriangle} label={ui(language, "报损样衣", "Loss")} value={metrics.damaged} />
+            <Metric icon={ClipboardList} label={ui(language, "待处理申请", "Pending")} value={metrics.requests} />
           </section>
         )}
 
@@ -1491,6 +1491,7 @@ function App() {
               <AdminSettingsView
                 config={systemConfig}
                 creditPurchaseAmount={creditPurchaseAmount}
+                language={language}
                 setCreditPurchaseAmount={setCreditPurchaseAmount}
                 updateAccount={updateAccount}
                 changeAccountRole={changeAccountRole}
@@ -2720,6 +2721,7 @@ function DesignerMeView(props: {
 function AdminSettingsView(props: {
   config: SystemConfig;
   creditPurchaseAmount: string;
+  language: Locale;
   setCreditPurchaseAmount: (value: string) => void;
   updateAccount: (accountId: string, patch: Partial<AccountUser>) => void;
   changeAccountRole: (accountId: string, role: BusinessRole) => void;
@@ -2729,25 +2731,32 @@ function AdminSettingsView(props: {
   uploadConfigIcon: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   buyAiCredits: () => void;
 }) {
+  const l = props.language;
   return (
     <section className="settings-layout">
       <div className="panel settings-panel">
         <div className="form-toolbar">
           <div>
-            <p className="eyebrow">系统配置</p>
-            <h2>界面与品牌</h2>
-            <span>调整客户看到的系统名称、侧边栏短名称、背景图和图标。</span>
+            <p className="eyebrow">{ui(l, "系统配置", "System settings")}</p>
+            <h2>{ui(l, "界面与品牌", "Interface and brand")}</h2>
+            <span>
+              {ui(
+                l,
+                "调整客户看到的系统名称、侧边栏短名称、背景图和图标。",
+                "Edit the system name, short UI name, background, and icon visible to clients."
+              )}
+            </span>
           </div>
           <Settings2 size={24} />
         </div>
         <div className="form-grid">
           <Field
-            label="界面名称"
+            label={ui(l, "界面名称", "System name")}
             value={props.config.appName}
             onChange={(value) => props.updateSystemConfig("appName", value)}
           />
           <Field
-            label="UI 短名称"
+            label={ui(l, "UI 短名称", "Short UI name")}
             value={props.config.uiName}
             onChange={(value) => props.updateSystemConfig("uiName", value)}
           />
@@ -2755,32 +2764,32 @@ function AdminSettingsView(props: {
         <div className="settings-upload-grid">
           <div className="settings-preview">
             {props.config.backgroundImageUrl ? (
-              <img alt="背景图预览" src={props.config.backgroundImageUrl} />
+              <img alt={ui(l, "背景图预览", "Background preview")} src={props.config.backgroundImageUrl} />
             ) : (
-              <span>当前使用默认动态玻璃背景</span>
+              <span>{ui(l, "当前使用默认动态玻璃背景", "Default liquid glass background is active")}</span>
             )}
           </div>
           <div className="settings-upload-actions">
             <label className="file-button wide">
               <ImageUp size={16} />
-              更换背景图
+              {ui(l, "更换背景图", "Change background")}
               <input accept="image/*" onChange={props.uploadConfigBackground} type="file" />
             </label>
             <button className="ghost" onClick={() => props.updateSystemConfig("backgroundImageUrl", "")} type="button">
-              恢复默认背景
+              {ui(l, "恢复默认背景", "Reset background")}
             </button>
           </div>
           <div className="settings-icon-preview">
-            {props.config.iconUrl ? <img alt="图标预览" src={props.config.iconUrl} /> : <Shirt size={28} />}
+            {props.config.iconUrl ? <img alt={ui(l, "图标预览", "Icon preview")} src={props.config.iconUrl} /> : <Shirt size={28} />}
           </div>
           <div className="settings-upload-actions">
             <label className="file-button wide">
               <Upload size={16} />
-              更换图标
+              {ui(l, "更换图标", "Change icon")}
               <input accept="image/*" onChange={props.uploadConfigIcon} type="file" />
             </label>
             <button className="ghost" onClick={() => props.updateSystemConfig("iconUrl", "")} type="button">
-              恢复默认图标
+              {ui(l, "恢复默认图标", "Reset icon")}
             </button>
           </div>
         </div>
@@ -2789,30 +2798,32 @@ function AdminSettingsView(props: {
       <div className="panel settings-panel">
         <div className="form-toolbar">
           <div>
-            <h2>AI 积分购买</h2>
-            <p>当前演示为本地积分池，后续可接充值和消耗流水。</p>
+            <h2>{ui(l, "AI 积分购买", "AI credits")}</h2>
+            <p>
+              {ui(l, "当前演示为本地积分池，后续可接充值和消耗流水。", "This demo uses a local credit pool; recharge and usage ledgers can be connected later.")}
+            </p>
           </div>
           <Coins size={24} />
         </div>
         <div className="settings-credit-row">
           <div className="metric money-metric">
             <Coins size={18} />
-            <span>AI 积分剩余</span>
+            <span>{ui(l, "AI 积分剩余", "Credits")}</span>
             <strong>{props.config.aiCreditsRemaining}</strong>
           </div>
           <Field
-            label="当前积分余额"
+            label={ui(l, "当前积分余额", "Current balance")}
             value={String(props.config.aiCreditsRemaining)}
             onChange={(value) => props.updateSystemConfig("aiCreditsRemaining", Math.max(0, Math.round(parseMoneyValue(value))))}
           />
           <Field
-            label="本次购买积分"
+            label={ui(l, "本次购买积分", "Purchase amount")}
             value={props.creditPurchaseAmount}
             onChange={props.setCreditPurchaseAmount}
           />
           <button onClick={props.buyAiCredits} type="button">
             <Coins size={16} />
-            购买积分
+            {ui(l, "购买积分", "Buy credits")}
           </button>
         </div>
       </div>
@@ -2820,18 +2831,24 @@ function AdminSettingsView(props: {
       <div className="panel settings-panel settings-accounts-panel">
         <div className="form-toolbar">
           <div>
-            <h2>账号与权限</h2>
-            <p>按身份维护权限范围：业务总经理、业务经理、业务助理、面料员、设计师、设计总监。</p>
+            <h2>{ui(l, "账号与权限", "Accounts and roles")}</h2>
+            <p>
+              {ui(
+                l,
+                "按身份维护权限范围：业务总经理、业务经理、业务助理、面料员、设计师、设计总监。",
+                "Maintain access by role: business director, manager, assistant, fabric staff, designer, and design director."
+              )}
+            </p>
           </div>
           <ShieldCheck size={24} />
         </div>
         <div className="account-table">
           <div className="account-row head">
-            <span>账号</span>
-            <span>团队</span>
-            <span>身份</span>
-            <span>权限</span>
-            <span>状态</span>
+            <span>{ui(l, "账号", "Account")}</span>
+            <span>{ui(l, "团队", "Team")}</span>
+            <span>{ui(l, "身份", "Role")}</span>
+            <span>{ui(l, "权限", "Permissions")}</span>
+            <span>{ui(l, "状态", "Status")}</span>
           </div>
           {props.config.accounts.map((account) => (
             <div className="account-row" key={account.id}>
@@ -2864,7 +2881,7 @@ function AdminSettingsView(props: {
                   onChange={(event) => props.toggleAccountEnabled(account.id, event.target.checked)}
                   type="checkbox"
                 />
-                启用
+                {ui(l, "启用", "Enabled")}
               </label>
             </div>
           ))}
@@ -4090,14 +4107,14 @@ function LanguageSwitcher(props: { language: Locale; setLanguage: (value: Locale
         onClick={() => props.setLanguage("zh")}
         type="button"
       >
-        中文
+        中
       </button>
       <button
         className={props.language === "en" ? "active" : ""}
         onClick={() => props.setLanguage("en")}
         type="button"
       >
-        English
+        EN
       </button>
     </div>
   );

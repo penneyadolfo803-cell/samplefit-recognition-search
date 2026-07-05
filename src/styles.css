@@ -258,6 +258,13 @@ button b {
 
 .topbar {
   margin-bottom: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.topbar > div:first-child {
+  flex: 0 1 clamp(190px, 18vw, 340px);
+  min-width: min(100%, 260px);
 }
 
 .topbar h1,
@@ -283,8 +290,22 @@ button b {
 
 .top-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 720px;
+  flex-wrap: wrap;
+}
+
+.top-actions button,
+.top-actions .credit-pill,
+.top-actions .language-switcher {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.top-actions > button {
+  padding-inline: 12px;
 }
 
 .language-switcher {
@@ -294,7 +315,7 @@ button b {
   gap: 4px;
   border-radius: 8px;
   border: var(--glass-border);
-  padding: 3px 4px 3px 10px;
+  padding: 3px 4px 3px 8px;
   color: #143047;
   background: linear-gradient(145deg, rgb(255 255 255 / 0.68), rgb(255 255 255 / 0.24));
   box-shadow:
@@ -306,7 +327,7 @@ button b {
 
 .language-switcher button {
   min-height: 32px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 7px;
   color: #143047;
   background: transparent;
