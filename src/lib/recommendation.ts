@@ -2,12 +2,13 @@ import { formatTags } from "./image";
 import type { Sample } from "./types";
 
 const categoryGroups: Array<{ id: string; terms: string[] }> = [
-  { id: "outerwear", terms: ["风衣", "外套", "夹克", "大衣", "西装", "马甲", "羽绒", "防晒衣", "冲锋衣"] },
+  { id: "sports", terms: ["运动套装", "运动夹克", "运动", "卫衣", "卫裤", "棒球夹克"] },
+  { id: "tailored_set", terms: ["西装套装", "西装套裙", "西装裙", "套装"] },
+  { id: "outerwear", terms: ["风衣", "外套", "夹克", "大衣", "西装外套", "西装马甲", "马甲", "羽绒", "防晒衣", "防晒服", "冲锋衣", "派克服"] },
   { id: "pants", terms: ["裤", "短裤", "西裤", "阔腿裤", "牛仔裤"] },
   { id: "dress", terms: ["连衣裙", "裙装", "衬衫裙"] },
   { id: "skirt", terms: ["半身裙", "短裙", "长裙"] },
   { id: "top", terms: ["衬衫", "上衣", "T恤", "针织", "开衫", "卫衣", "毛衣"] },
-  { id: "set", terms: ["套装", "运动套装"] }
 ];
 
 export function getRecommendedSamples(target: Sample, samples: Sample[], limit = 18) {
