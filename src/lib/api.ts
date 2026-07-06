@@ -11,7 +11,10 @@ import type {
   SimilarResult
 } from "./types";
 
-const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const inferredApiBaseUrl =
+  typeof window !== "undefined" && window.location.pathname.startsWith("/landup/") ? "/landup" : "";
+const apiBaseUrl = configuredApiBaseUrl || inferredApiBaseUrl;
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${url}`, {

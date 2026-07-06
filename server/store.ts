@@ -383,7 +383,7 @@ function seedSamples(): Sample[] {
       supplier: "禾森制衣",
       retailPrice: "899",
       imageUrl:
-        "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=82",
+        "./design-images/sj-2607-018-front.jpg",
       enhancedImageUrl: "",
       threeDUrl: "https://style3d.com/viewer/demo-jacket",
       bomItems: [
@@ -446,7 +446,7 @@ function seedSamples(): Sample[] {
       supplier: "越辰服饰",
       retailPrice: "529",
       imageUrl:
-        "https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=900&q=82",
+        "./design-images/sj-2607-026-front.jpg",
       enhancedImageUrl: "",
       threeDUrl: "",
       bomItems: [
@@ -511,7 +511,7 @@ function seedSamples(): Sample[] {
       supplier: "澜织工坊",
       retailPrice: "699",
       imageUrl:
-        "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=82",
+        "./design-images/sj-2607-041-front.jpg",
       enhancedImageUrl: "",
       threeDUrl: "https://style3d.com/viewer/demo-knit",
       bomItems: [

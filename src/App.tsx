@@ -4,7 +4,8 @@ import {
   useState,
   type ChangeEvent,
   type Dispatch,
-  type SetStateAction
+  type SetStateAction,
+  type SyntheticEvent
 } from "react";
 import {
   Archive,
@@ -309,6 +310,32 @@ const kindText = {
 const hasConfiguredApiBase = Boolean(import.meta.env.VITE_API_BASE_URL);
 const isStaticDemoHost =
   typeof window !== "undefined" && window.location.hostname.endsWith("github.io") && !hasConfiguredApiBase;
+
+function sampleImageProps(sample: Pick<Sample, "imageUrl" | "enhancedImageUrl">) {
+  return {
+    src: sample.enhancedImageUrl || sample.imageUrl,
+    onError: (event: SyntheticEvent<HTMLImageElement>) => {
+      const image = event.currentTarget;
+      if (sample.imageUrl && image.dataset.fallbackApplied !== "true") {
+        image.dataset.fallbackApplied = "true";
+        image.src = sample.imageUrl;
+      }
+    }
+  };
+}
+
+function draftImageProps(draft: Pick<SampleDraft, "imageUrl" | "enhancedImageUrl">) {
+  return {
+    src: draft.enhancedImageUrl || draft.imageUrl,
+    onError: (event: SyntheticEvent<HTMLImageElement>) => {
+      const image = event.currentTarget;
+      if (draft.imageUrl && image.dataset.fallbackApplied !== "true") {
+        image.dataset.fallbackApplied = "true";
+        image.src = draft.imageUrl;
+      }
+    }
+  };
+}
 
 function App() {
   const [samples, setSamples] = useState<Sample[]>([]);
@@ -1158,44 +1185,75 @@ function App() {
   }
 
   async function uploadDraftImage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
-    const imageUrl = await fileToOptimizedDataUrl(file);
-    setDraft((current) => ({ ...current, imageUrl }));
+    try {
+      const imageUrl = await fileToOptimizedDataUrl(file);
+      setDraft((current) => ({ ...current, imageUrl }));
+      setNotice("样衣图片已上传到草稿");
+    } catch (error) {
+      setNotice(`图片读取失败：${readError(error)}`);
+    } finally {
+      input.value = "";
+    }
   }
 
   async function uploadBulkFrontImage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
-    const imageUrl = await fileToOptimizedDataUrl(file);
-    setBulkDraft((current) => ({ ...current, imageUrl, enhancedImageUrl: imageUrl }));
+    try {
+      const imageUrl = await fileToOptimizedDataUrl(file);
+      setBulkDraft((current) => ({ ...current, imageUrl, enhancedImageUrl: imageUrl }));
+      setNotice("大货正面图已上传到草稿");
+    } catch (error) {
+      setNotice(`图片读取失败：${readError(error)}`);
+    } finally {
+      input.value = "";
+    }
   }
 
   async function uploadBulkBackImage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
-    const imageUrl = await fileToOptimizedDataUrl(file);
-    setBulkDraft((current) => ({
-      ...current,
-      designFiles: [
-        ...current.designFiles.filter((fileItem) => fileItem.name !== "大货背面白底模特图"),
-        { id: uid(), name: "大货背面白底模特图", type: "PNG", url: imageUrl }
-      ]
-    }));
+    try {
+      const imageUrl = await fileToOptimizedDataUrl(file);
+      setBulkDraft((current) => ({
+        ...current,
+        designFiles: [
+          ...current.designFiles.filter((fileItem) => fileItem.name !== "大货背面白底模特图"),
+          { id: uid(), name: "大货背面白底模特图", type: "PNG", url: imageUrl }
+        ]
+      }));
+      setNotice("大货背面图已上传到草稿");
+    } catch (error) {
+      setNotice(`图片读取失败：${readError(error)}`);
+    } finally {
+      input.value = "";
+    }
   }
 
   async function uploadSearchImage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
-    setSearchImage(await fileToOptimizedDataUrl(file, 960));
+    try {
+      setSearchImage(await fileToOptimizedDataUrl(file, 960));
+    } catch (error) {
+      setNotice(`图片读取失败：${readError(error)}`);
+    } finally {
+      input.value = "";
+    }
   }
 
   function openTutorial() {
@@ -1613,7 +1671,7 @@ function LibraryView(props: {
               onClick={() => props.setSelectedId(sample.id)}
               type="button"
             >
-              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <img alt={sample.name} {...sampleImageProps(sample)} />
               <div className="sample-card-body">
                 <div className="card-title">
                   <strong>{sample.name}</strong>
@@ -1659,7 +1717,7 @@ function SampleDetail(props: {
   return (
     <article className="detail">
       <div className="detail-media">
-        <img alt={props.sample.name} src={props.sample.enhancedImageUrl || props.sample.imageUrl} />
+        <img alt={props.sample.name} {...sampleImageProps(props.sample)} />
         <div className="media-actions">
           <button className="icon-button" onClick={() => void props.toggleFlag(props.sample, "favorite")} type="button">
             <Heart fill={props.sample.favorite ? "currentColor" : "none"} size={16} />
@@ -1754,7 +1812,7 @@ function EntryView(props: {
       <div className="panel image-panel">
         <div className="image-preview">
           {props.draft.enhancedImageUrl || props.draft.imageUrl ? (
-            <img alt="样衣预览" src={props.draft.enhancedImageUrl || props.draft.imageUrl} />
+            <img alt="样衣预览" {...draftImageProps(props.draft)} />
           ) : (
             <div className="empty-image">
               <ImageUp size={28} />
@@ -1954,7 +2012,7 @@ function BulkGoodsView(props: {
               onClick={() => props.editBulkSample(sample)}
               type="button"
             >
-              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <img alt={sample.name} {...sampleImageProps(sample)} />
               <div className="sample-card-body">
                 <div className="card-title">
                   <strong>{sample.name}</strong>
@@ -2116,7 +2174,7 @@ function BorrowView(props: {
   return (
     <section className="borrow-layout">
       <div className="panel selected-panel">
-        <img alt={props.selected.name} src={props.selected.enhancedImageUrl || props.selected.imageUrl} />
+        <img alt={props.selected.name} {...sampleImageProps(props.selected)} />
         <div>
           <p className="eyebrow">{props.selected.sku}</p>
           <h2>{props.selected.name}</h2>
@@ -2308,7 +2366,7 @@ function BorrowView(props: {
               onClick={() => props.setSelectedId(sample.id)}
               type="button"
             >
-              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <img alt={sample.name} {...sampleImageProps(sample)} />
               <div>
                 <strong>{sample.sku}</strong>
                 <span>{sample.name} · {sample.season || sample.category}</span>
@@ -2682,7 +2740,7 @@ function DesignerMeView(props: {
               }}
               type="button"
             >
-              <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+              <img alt={sample.name} {...sampleImageProps(sample)} />
               <strong>{sample.name}</strong>
               <span>{sample.sku} · {sample.category}</span>
               <small>{sample.selected ? "已被前台选中" : "待前台选择"} · 借出 {sample.borrowHistory.length} 次</small>
@@ -2976,7 +3034,7 @@ function AiView(props: {
               }}
               type="button"
             >
-              <img alt={result.sample.name} src={result.sample.enhancedImageUrl || result.sample.imageUrl} />
+              <img alt={result.sample.name} {...sampleImageProps(result.sample)} />
               <div>
                 <strong>{result.sample.name}</strong>
                 <span>{Math.round(result.score * 100)}% · {result.reason}</span>
@@ -3117,7 +3175,7 @@ function FrontDeskPinterestView(props: {
         key={sample.id}
       >
         <button className="front-pin-image" onClick={() => openSample(sample)} type="button">
-          <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+          <img alt={sample.name} {...sampleImageProps(sample)} />
         </button>
         <div className="front-pin-actions">
           <button
@@ -3591,7 +3649,7 @@ function FrontDeskPinterestView(props: {
                           }}
                           type="button"
                         >
-                          <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+                          <img alt={sample.name} {...sampleImageProps(sample)} />
                           <div>
                             <strong>{sample.name}</strong>
                             <span>{sample.sku} · {Math.round(result.score * 100)}%</span>
@@ -3741,7 +3799,7 @@ function FrontDeskView(props: {
               key={sample.id}
             >
               <button className="front-card-main" onClick={() => props.setSelectedId(sample.id)} type="button">
-                <img alt={sample.name} src={sample.enhancedImageUrl || sample.imageUrl} />
+                <img alt={sample.name} {...sampleImageProps(sample)} />
               </button>
               <div className="front-card-body">
                 <strong>{sample.name}</strong>
@@ -3782,7 +3840,7 @@ function FrontDeskView(props: {
       <div className="panel front-request-panel">
         {props.selected ? (
           <>
-            <img alt={props.selected.name} src={props.selected.enhancedImageUrl || props.selected.imageUrl} />
+            <img alt={props.selected.name} {...sampleImageProps(props.selected)} />
             <div className="detail-head compact-head">
               <div>
                 <p className="eyebrow">{props.selected.sku}</p>

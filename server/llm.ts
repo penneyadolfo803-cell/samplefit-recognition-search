@@ -37,8 +37,10 @@ export async function completeSampleFields(input: {
         "请补全服装样衣档案。只返回 JSON, 不要 Markdown。",
         "JSON 格式: {\"fields\":{...},\"confidence\":0.82,\"notes\":[\"...\"]}",
         "fields 可包含 sku,styleNo,name,englishName,category,season,gender,color,size,fabric,composition,craft,styleTags,sampleKind,source,ownerTeam,supplier,retailPrice,location,rack,threeDUrl,linkedStyles,linkedFabrics,linkedPatterns,visibilityScope,notes。",
-        "已知字段必须保留，不要用空字符串覆盖已提供的有效信息。",
+        "已知字段必须保留，不要改写、翻译或覆盖已提供的有效信息；只补全空字段。",
         "字段值不确定时留空或写在 notes 中，不要编造品牌授权信息。",
+        "只凭图片不要填写精确成分百分比；没有吊牌或面料单时 composition 留空，fabric 可写亚麻感、棉麻感等视觉判断。",
+        "sampleKind 只能是 physical 或 digital3d；source 只能是 design 或 bulk。",
         `当前已知字段: ${JSON.stringify(input.partial)}`
       ].join("\n")
     }
@@ -71,9 +73,11 @@ export async function completeSampleFields(input: {
   const parsed = parseJsonObject(content);
 
   return {
-    fields: sanitizeFields(parsed.fields || parsed),
+    fields: sanitizeFields(parsed.fields || parsed, input.partial),
     confidence: clampNumber(parsed.confidence, 0, 1, 0.62),
-    notes: Array.isArray(parsed.notes) ? parsed.notes.map(String).slice(0, 4) : []
+    notes: Array.isArray(parsed.notes)
+      ? parsed.notes.map(String).filter((note: string) => !isInvalidAiText(note)).slice(0, 4)
+      : []
   };
 }
 
@@ -106,7 +110,7 @@ export async function enhanceSampleImage(imageDataUrl: string, prompt?: string) 
     throw new Error("图片美化完成但未返回图片地址");
   }
 
-  return { imageUrl, providerPayload: json };
+  return { imageUrl: await inlineRemoteImage(imageUrl), providerPayload: json };
 }
 
 export async function createMultimodalEmbedding(input: {
@@ -214,7 +218,7 @@ function parseJsonObject(text: string) {
   throw new Error("AI 返回不是可解析的 JSON");
 }
 
-function sanitizeFields(fields: Record<string, unknown>) {
+function sanitizeFields(fields: Record<string, unknown>, partial: Partial<SampleDraft> = {}) {
   const allowed = new Set([
     "sku",
     "styleNo",
@@ -249,20 +253,92 @@ function sanitizeFields(fields: Record<string, unknown>) {
     if (!allowed.has(key) || value === undefined || value === null) {
       return;
     }
-    if (Array.isArray(value)) {
-      const tags = normalizeTags(value);
+    if (hasKnownValue(partial[key as keyof SampleDraft])) {
+      return;
+    }
+    if (Array.isArray(value) || isListField(key)) {
+      const tags = normalizeTags(value).filter((tag) => !isInvalidAiText(tag));
       if (tags.length) {
         result[key] = tags;
       }
       return;
     }
     const text = String(value).trim();
-    if (text) {
-      result[key] = text;
+    if (!text || isInvalidAiText(text)) {
+      return;
     }
+    if (key === "composition" && !hasKnownValue(partial.composition) && looksLikeUnsupportedComposition(text)) {
+      return;
+    }
+    if (key === "sampleKind") {
+      const sampleKind = normalizeSampleKind(text);
+      if (sampleKind) {
+        result[key] = sampleKind;
+      }
+      return;
+    }
+    if (key === "source") {
+      const source = normalizeSource(text);
+      if (source) {
+        result[key] = source;
+      }
+      return;
+    }
+    result[key] = text;
   });
 
   return result;
+}
+
+function hasKnownValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  return String(value ?? "").trim().length > 0;
+}
+
+function isListField(key: string) {
+  return key === "styleTags" || key === "linkedStyles" || key === "linkedFabrics" || key === "linkedPatterns";
+}
+
+function isInvalidAiText(value: string) {
+  const text = value.trim();
+  if (!text) {
+    return true;
+  }
+  if (/^(?:[?\uFFFD]+|null|undefined|n\/a|unknown)$/i.test(text)) {
+    return true;
+  }
+  if (/[?\uFFFD]{2,}/.test(text)) {
+    return true;
+  }
+  return /锟斤拷|�|鐨|鏍|璇|涓|绯|瀹|鍥|褰|鑸/.test(text);
+}
+
+function looksLikeUnsupportedComposition(value: string) {
+  return /\d+\s*%|百分之|纯|全/.test(value);
+}
+
+function normalizeSampleKind(value: string) {
+  const text = value.trim().toLowerCase();
+  if (/digital|3d|three/.test(text) || /3d|数字|數字|虚拟|虛擬/.test(value)) {
+    return "digital3d";
+  }
+  if (/physical|实物|實物|样衣|樣衣|设计样|設計樣|sample/.test(text) || /实物|實物|样衣|樣衣|设计样|設計樣/.test(value)) {
+    return "physical";
+  }
+  return "";
+}
+
+function normalizeSource(value: string) {
+  const text = value.trim().toLowerCase();
+  if (/bulk|大货|大貨/.test(text) || /大货|大貨/.test(value)) {
+    return "bulk";
+  }
+  if (/design|设计|設計/.test(text) || /设计|設計/.test(value)) {
+    return "design";
+  }
+  return "";
 }
 
 function normalizeTags(value: unknown) {
@@ -314,6 +390,40 @@ function extractImageUrl(payload: any) {
     return first.image_url;
   }
   return "";
+}
+
+async function inlineRemoteImage(imageUrl: string) {
+  if (!/^https?:\/\//i.test(imageUrl)) {
+    return imageUrl;
+  }
+
+  const attempts: RequestInit[] = [
+    {},
+    {
+      headers: {
+        "api-key": config.key,
+        Authorization: `Bearer ${config.key}`
+      }
+    }
+  ];
+
+  let lastStatus = "";
+  for (const init of attempts) {
+    try {
+      const response = await fetch(imageUrl, init);
+      if (!response.ok) {
+        lastStatus = `${response.status} ${response.statusText}`.trim();
+        continue;
+      }
+      const contentType = response.headers.get("content-type") || "image/png";
+      const bytes = Buffer.from(await response.arrayBuffer());
+      return `data:${contentType};base64,${bytes.toString("base64")}`;
+    } catch (error) {
+      lastStatus = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  throw new Error(`AI 图片已生成，但服务器无法下载结果图用于预览：${lastStatus || imageUrl}`);
 }
 
 function extractEmbedding(payload: any): number[] {
